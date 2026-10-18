@@ -43,9 +43,11 @@ public class DatabaseManager {
             System.out.println("未检测到数据库，正在自动初始化...");
             try {
                 // 1. 从 resources 读取 V1_init.sql
-                InputStream is = DatabaseManager.class.getResourceAsStream("/sql/V1_init.sql");
+                // 改成这样，这是读取 classpath 资源最稳妥的方式
+                InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream("sql/V1_init.sql");
+
                 if (is == null) {
-                    throw new RuntimeException("找不到建表脚本：/sql/V1_init.sql");
+                    throw new RuntimeException("找不到建表脚本：sql/V1_init.sql");
                 }
                 Scanner scanner = new Scanner(is, "UTF-8").useDelimiter(";"); // 用分号分割SQL
 

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.MenuBar?>
+<?import javafx.scene.control.Menu?>
+<?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17.0.2" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.company.assetmgmt.itassetmanagement.ui.MainController">
+
+    <!-- 顶部：菜单栏 -->
+    <top>
+        <MenuBar>
+            <Menu text="系统">
+                <MenuItem text="退出"/>
+            </Menu>
+            <Menu text="资产管理">
+                <MenuItem text="新增资产"/>
+            </Menu>
+        </MenuBar>
+    </top>
+
+    <!-- 中间：主内容区 -->
+    <center>
+        <VBox alignment="CENTER">
+            <Label text="欢迎使用 IT 资产管理系统" style="-fx-font-size: 24px; -fx-font-weight: bold;"/>
+            <Label text="（在这里放置你的 TableView 表格）" style="-fx-font-size: 14px; -fx-text-fill: gray;"/>
+        </VBox>
+    </center>
+
+</BorderPane>

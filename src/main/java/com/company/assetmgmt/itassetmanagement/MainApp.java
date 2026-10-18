@@ -9,7 +9,7 @@ import javafx.stage.Stage;
 
 import java.io.IOException;
 
-public class HelloApplication extends Application {
+public class MainApp extends Application {
     @Override
     public void init() throws Exception {
         // 1. 确保数据库文件存在且建好了表（上一条回复的 DatabaseManager）
@@ -22,14 +22,15 @@ public class HelloApplication extends Application {
     @Override
     public void start(Stage stage) throws IOException {
         DatabaseManager.initDatabase();
-        FXMLLoader fxmlLoader = new FXMLLoader(HelloApplication.class.getResource("hello-view.fxml"));
-        Scene scene = new Scene(fxmlLoader.load(), 320, 240);
-        stage.setTitle("Hello!");
+        FXMLLoader fxmlLoader = new FXMLLoader(MainApp.class.getResource("/fxml/MainView.fxml"));
+        Scene scene = new Scene(fxmlLoader.load(),  1024, 768);
+
+        stage.setTitle("IT 资产管理系统");
         stage.setScene(scene);
         stage.show();
     }
 
-    public static void main(String[] args) {
-        launch();
-    }
+//    public static void main(String[] args) {
+//        launch();
+//    }
 }

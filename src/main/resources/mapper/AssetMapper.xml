@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.company.assetmgmt.itassetmanagement.mapper.AssetMapper">
+    <!-- 这里先空着，等写好 Mapper 接口后再加具体的 SQL -->
+</mapper>
