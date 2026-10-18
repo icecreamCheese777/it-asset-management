@@ -26,7 +26,7 @@
     <center>
         <VBox alignment="CENTER">
             <Label text="欢迎使用 IT 资产管理系统" style="-fx-font-size: 24px; -fx-font-weight: bold;"/>
-            <Label text="（在这里放置你的 TableView 表格）" style="-fx-font-size: 14px; -fx-text-fill: gray;"/>
+            <Label text="（在这里放置你的 TableView 表格）" style="-fx-font-size: 14px; -fx-text-fill: #808080;"/>
         </VBox>
     </center>
 
