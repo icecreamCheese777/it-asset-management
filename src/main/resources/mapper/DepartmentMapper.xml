@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.company.assetmgmt.itassetmanagement.mapper.DepartmentMapper">
+    <select id="selectAll" resultType="com.company.assetmgmt.itassetmanagement.model.Department">
+        SELECT * FROM department
+    </select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO department (name) VALUES (#{name})
+    </insert>
+    <update id="update">
+        UPDATE department SET name = #{name} WHERE id = #{id}
+    </update>
+    <delete id="deleteById">
+        DELETE FROM department WHERE id = #{id}
+    </delete>
+    <select id="countAssetsByDeptId" resultType="int">
+        SELECT COUNT(*) FROM asset WHERE owner_dept_id = #{deptId}
+    </select>
+</mapper>

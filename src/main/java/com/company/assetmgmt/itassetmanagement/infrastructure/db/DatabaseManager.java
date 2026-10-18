@@ -10,7 +10,7 @@ import java.util.Scanner;
 public class DatabaseManager {
     // 获取安全的用户数据目录
     public static String getDbPath() {
-        String os = System.getProperty("os.name").toLowerCase();
+/*        String os = System.getProperty("os.name").toLowerCase();
         String baseDir;
 
         if (os.contains("win")) {
@@ -30,6 +30,17 @@ public class DatabaseManager {
             dir.mkdirs();
         }
 
+        return baseDir + File.separator + "asset.db";*/
+        // 直接指定在当前项目根目录下的 data 文件夹
+        String baseDir = "data";
+
+        // 确保目录存在
+        File dir = new File(baseDir);
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+
+        // 返回相对路径 (如 data\asset.db)
         return baseDir + File.separator + "asset.db";
     }
 

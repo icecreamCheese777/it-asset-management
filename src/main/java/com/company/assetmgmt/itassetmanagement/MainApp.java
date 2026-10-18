@@ -2,6 +2,7 @@ package com.company.assetmgmt.itassetmanagement;
 
 import com.company.assetmgmt.itassetmanagement.infrastructure.db.DatabaseManager;
 import com.company.assetmgmt.itassetmanagement.infrastructure.db.MyBatisUtil;
+import com.company.assetmgmt.itassetmanagement.ui.MainController;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
@@ -27,6 +28,19 @@ public class MainApp extends Application {
 
         stage.setTitle("IT 资产管理系统");
         stage.setScene(scene);
+        // 拦截窗口右上角的关闭按钮（红叉）
+        stage.setOnCloseRequest(event -> {
+            // 取消默认的关闭行为，改为调用我们在 Controller 里写的退出逻辑
+            event.consume();
+
+            // 触发菜单栏的退出逻辑
+            // 因为 Controller 不好直接调用，我们可以通过事件去触发，或者这里直接再写一遍备份
+            // 最优雅的方式是直接调用 controller
+            MainController controller = fxmlLoader.getController();
+            if (controller != null) {
+                controller.handleExit();
+            }
+        });
         stage.show();
     }
 

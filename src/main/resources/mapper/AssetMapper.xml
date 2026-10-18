@@ -3,5 +3,37 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="com.company.assetmgmt.itassetmanagement.mapper.AssetMapper">
-    <!-- 这里先空着，等写好 Mapper 接口后再加具体的 SQL -->
+
+    <select id="selectAll" resultType="com.company.assetmgmt.itassetmanagement.model.Asset">
+        SELECT
+            a.id, a.asset_no, a.name, a.category_id, a.status,
+            a.owner_dept_id, a.device_params, a.created_at, a.updated_at,
+            c.name AS categoryName,
+            d.name AS deptName
+        FROM asset a
+                 LEFT JOIN category c ON a.category_id = c.id
+                 LEFT JOIN department d ON a.owner_dept_id = d.id
+        ORDER BY a.id DESC
+    </select>
+    <!-- 插入资产，useGeneratedKeys 让数据库自动生成的自增ID回填到实体类中 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO asset (asset_no, name, category_id, status, owner_dept_id, device_params)
+        VALUES (#{assetNo}, #{name}, #{categoryId}, #{status}, #{ownerDeptId}, #{deviceParams})
+    </insert>
+
+    <!-- 根据 ID 删除 -->
+    <delete id="deleteById">
+        DELETE FROM asset WHERE id = #{id}
+    </delete>
+    <update id="update">
+        UPDATE asset
+        SET asset_no = #{assetNo},
+            name = #{name},
+            category_id = #{categoryId},
+            owner_dept_id = #{ownerDeptId},
+            status = #{status},
+            device_params = #{deviceParams},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
 </mapper>

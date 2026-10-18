@@ -1,33 +1,46 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.control.Label?>
-<?import javafx.scene.control.MenuBar?>
-<?import javafx.scene.control.Menu?>
-<?import javafx.scene.control.MenuItem?>
-<?import javafx.scene.layout.BorderPane?>
-<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
 
 <BorderPane xmlns="http://javafx.com/javafx/17.0.2" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.company.assetmgmt.itassetmanagement.ui.MainController">
 
-    <!-- 顶部：菜单栏 -->
     <top>
         <MenuBar>
             <Menu text="系统">
+                <MenuItem text="备份数据库" onAction="#handleBackupDb"/>
+                <MenuItem text="恢复数据库" onAction="#handleRestoreDb"/>
+                <MenuItem text="部门管理" onAction="#handleManageDept"/>
                 <MenuItem text="退出"/>
-            </Menu>
-            <Menu text="资产管理">
-                <MenuItem text="新增资产"/>
             </Menu>
         </MenuBar>
     </top>
 
-    <!-- 中间：主内容区 -->
     <center>
-        <VBox alignment="CENTER">
-            <Label text="欢迎使用 IT 资产管理系统" style="-fx-font-size: 24px; -fx-font-weight: bold;"/>
-            <Label text="（在这里放置你的 TableView 表格）" style="-fx-font-size: 14px; -fx-text-fill: #808080;"/>
+        <VBox spacing="10" style="-fx-padding: 10;">
+            <!-- 顶部操作栏 -->
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Button text="新增资产" onAction="#handleAddAsset" />
+                <Button text="修改" onAction="#handleEditAsset" />
+                <Button text="删除" onAction="#handleDeleteAsset" />
+                <TextField fx:id="searchField" promptText="输入资产编号或名称搜索..." prefWidth="200"/>
+                <Button text="导出报表" onAction="#handleExportExcel"/>
+            </HBox>
+
+            <!-- 数据表格 -->
+            <TableView fx:id="assetTable" VBox.vgrow="ALWAYS">
+                <columns>
+                    <TableColumn fx:id="colAssetNo" text="资产编号" prefWidth="120"/>
+                    <TableColumn fx:id="colName" text="资产名称" prefWidth="150"/>
+                    <TableColumn fx:id="colCategory" text="类别" prefWidth="100"/>
+                    <TableColumn fx:id="colDept" text="所属部门" prefWidth="120"/>
+                    <TableColumn fx:id="colStatus" text="状态" prefWidth="100"/>
+                    <TableColumn fx:id="colParams" text="设备参数" prefWidth="200"/>
+                    <TableColumn fx:id="colCreatedAt" text="入库时间" prefWidth="150"/>
+                    <TableColumn fx:id="colUpdatedAt" text="更新时间" prefWidth="150"/>
+                </columns>
+            </TableView>
         </VBox>
     </center>
-
 </BorderPane>
