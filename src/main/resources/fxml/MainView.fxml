@@ -27,6 +27,8 @@
                 <TextField fx:id="searchField" promptText="输入资产编号或名称搜索..." prefWidth="200"/>
                 <Button text="导出报表" onAction="#handleExportExcel"/>
             </HBox>
+            <!-- 新增：部门快捷过滤栏 -->
+            <FlowPane fx:id="deptFilterPane" hgap="10" vgap="10" style="-fx-padding: 0 0 5 0;" />
 
             <!-- 数据表格 -->
             <TableView fx:id="assetTable" VBox.vgrow="ALWAYS">

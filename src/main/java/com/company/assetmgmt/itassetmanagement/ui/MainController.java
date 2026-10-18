@@ -14,6 +14,7 @@ import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -46,6 +47,10 @@ public class MainController {
     @FXML private TableColumn<Asset, String> colParams;
     @FXML private TableColumn<Asset, LocalDateTime> colCreatedAt;
     @FXML private TableColumn<Asset, LocalDateTime> colUpdatedAt;
+    @FXML private FlowPane deptFilterPane; // 新增的流式布局
+
+    private Integer currentDeptId = null;  // 当前选中的部门ID，null表示“全部”
+    private ToggleGroup deptToggleGroup;   // 按钮组，保证同一时间只能选中一个部门
 
     private ObservableList<Asset> assetList = FXCollections.observableArrayList();
 
@@ -83,29 +88,11 @@ public class MainController {
         // 2. 将过滤列表绑定到表格
         assetTable.setItems(filteredData);
         // 3. 监听搜索框的输入变化
-        searchField.textProperty().addListener((observable, oldValue, newValue) -> {
-            filteredData.setPredicate(asset -> {
-                // 如果搜索框为空，显示所有数据
-                if (newValue == null || newValue.isEmpty()) {
-                    return true;
-                }
-
-                // 把输入的搜索词转为小写，实现忽略大小写的模糊匹配
-                String lowerCaseFilter = newValue.toLowerCase().trim();
-
-                // 匹配资产编号
-                if (asset.getAssetNo() != null && asset.getAssetNo().toLowerCase().contains(lowerCaseFilter)) {
-                    return true;
-                }
-                // 匹配资产名称
-                if (asset.getName() != null && asset.getName().toLowerCase().contains(lowerCaseFilter)) {
-                    return true;
-                }
-                return false; // 都不匹配则隐藏该行
-            });
-        });
+        searchField.textProperty().addListener((observable, oldValue, newValue) -> performFilter());
         // 4. 加载数据
         loadDataFromDatabase();
+        // 初始化部门按钮
+        loadDeptButtons();
 
         // 格式化日期显示
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -424,6 +411,9 @@ public class MainController {
         });
 
         dialog.showAndWait();
+        // 弹窗关闭后，重新加载部门按钮和表格数据
+        loadDeptButtons();
+        loadDataFromDatabase();
     }
 
     @FXML
@@ -579,5 +569,68 @@ public class MainController {
             javafx.application.Platform.exit();
             System.exit(0);
         }
+    }
+
+    // 动态加载部门按钮
+    private void loadDeptButtons() {
+        deptFilterPane.getChildren().clear();
+        deptToggleGroup = new ToggleGroup();
+
+        // 1. 先创建一个“全部”按钮
+        ToggleButton allBtn = new ToggleButton("全部");
+        allBtn.setToggleGroup(deptToggleGroup);
+        allBtn.setUserData(null); // 用 null 代表不限制部门
+        allBtn.setSelected(true); // 默认选中
+        deptFilterPane.getChildren().add(allBtn);
+
+        // 2. 从数据库读取所有部门，生成按钮
+        try (SqlSession session = MyBatisUtil.getSession()) {
+            List<Department> depts = session.getMapper(DepartmentMapper.class).selectAll();
+            for (Department dept : depts) {
+                ToggleButton btn = new ToggleButton(dept.getName());
+                btn.setToggleGroup(deptToggleGroup);
+                btn.setUserData(dept.getId()); // 把部门ID存入按钮
+                deptFilterPane.getChildren().add(btn);
+            }
+        }
+
+        // 3. 监听按钮点击事件
+        deptToggleGroup.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
+            if (newToggle == null) {
+                // 防止用户再次点击已选中的按钮导致取消选中
+                oldToggle.setSelected(true);
+            } else {
+                // 获取被选中按钮里的部门ID
+                currentDeptId = (Integer) newToggle.getUserData();
+                // 执行过滤
+                performFilter();
+            }
+        });
+    }
+
+    // 统一的过滤逻辑（同时处理搜索词和部门）
+    private void performFilter() {
+        String searchText = searchField.getText() == null ? "" : searchField.getText().toLowerCase().trim();
+
+        filteredData.setPredicate(asset -> {
+            // 条件1：部门过滤
+            if (currentDeptId != null) {
+                if (asset.getOwnerDeptId() == null || !asset.getOwnerDeptId().equals(currentDeptId)) {
+                    return false; // 如果不属于该部门，直接淘汰
+                }
+            }
+
+            // 条件2：文本搜索过滤
+            if (searchText.isEmpty()) {
+                return true; // 搜索框为空，且部门条件已通过，保留
+            }
+            if (asset.getAssetNo() != null && asset.getAssetNo().toLowerCase().contains(searchText)) {
+                return true;
+            }
+            if (asset.getName() != null && asset.getName().toLowerCase().contains(searchText)) {
+                return true;
+            }
+            return false;
+        });
     }
 }
