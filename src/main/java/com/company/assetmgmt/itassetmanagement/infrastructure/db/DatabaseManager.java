@@ -31,6 +31,7 @@ public class DatabaseManager {
         }
 
         return baseDir + File.separator + "asset.db";*/
+
         // 直接指定在当前项目根目录下的 data 文件夹
         String baseDir = "data";
 
