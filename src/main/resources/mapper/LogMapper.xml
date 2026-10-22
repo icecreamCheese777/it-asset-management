@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.company.assetmgmt.itassetmanagement.mapper.LogMapper">
+    <select id="selectAll" resultType="com.company.assetmgmt.itassetmanagement.model.OperationLog">
+        SELECT * FROM operation_log ORDER BY created_at DESC
+    </select>
+    <insert id="insertLog">
+        INSERT INTO operation_log (action, entity, entity_id, asset_no, asset_name, target_user, details)
+        VALUES (#{action}, #{entity}, #{entityId}, #{assetNo}, #{assetName}, #{targetUser}, #{details})
+    </insert>
+</mapper>

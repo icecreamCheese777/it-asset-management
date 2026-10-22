@@ -19,5 +19,6 @@
         <mapper resource="mapper/AssetMapper.xml"/>
         <mapper resource="mapper/CommonMapper.xml"/>
         <mapper resource="mapper/DepartmentMapper.xml"/>
+        <mapper resource="mapper/LogMapper.xml"/>
     </mappers>
 </configuration>

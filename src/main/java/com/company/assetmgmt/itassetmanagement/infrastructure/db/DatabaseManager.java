@@ -46,36 +46,53 @@ public class DatabaseManager {
     }
 
     // 检查并初始化数据库
+    // 初始化数据库
     public static void initDatabase() {
         String dbPath = getDbPath();
         File dbFile = new File(dbPath);
 
-        // 如果数据库文件不存在，说明是新电脑首次运行
+        // 如果数据库文件不存在，说明是首次运行
         if (!dbFile.exists()) {
             System.out.println("未检测到数据库，正在自动初始化...");
-            try {
-                // 1. 从 resources 读取 V1_init.sql
-                // 改成这样，这是读取 classpath 资源最稳妥的方式
-                InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream("sql/V1_init.sql");
+            String url = "jdbc:sqlite:" + dbPath;
+
+            try (Connection conn = DriverManager.getConnection(url);
+                 Statement stmt = conn.createStatement()) {
+
+                // --- 调试代码开始 ---
+                java.net.URL urlRes = Thread.currentThread().getContextClassLoader().getResource("sql/V1_init.sql");
+                if (urlRes == null) {
+                    System.out.println("============== 调试信息 ==============");
+                    System.out.println("当前 Classpath 路径: " + System.getProperty("java.class.path"));
+                    System.out.println("尝试读取的路径: sql/V1_init.sql");
+                    System.out.println("找不到文件！请检查 target/classes 下是否有这个文件。");
+                    System.out.println("======================================");
+                    throw new RuntimeException("建表脚本丢失");
+                } else {
+                    System.out.println("成功找到 SQL 文件，真实路径在: " + urlRes.getPath());
+                }
+                // --- 调试代码结束 ---
+
+                // ==========================================
+                // 核心修复：使用 ClassLoader 读取 resources 下的文件
+                // ==========================================
+                java.io.InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream("sql/V1_init.sql");
 
                 if (is == null) {
-                    throw new RuntimeException("找不到建表脚本：sql/V1_init.sql");
+                    throw new RuntimeException("致命错误：在 classpath 中找不到 sql/V1_init.sql，请确保它放在 src/main/resources/sql/ 下，并执行了 mvn clean package！");
                 }
-                Scanner scanner = new Scanner(is, "UTF-8").useDelimiter(";"); // 用分号分割SQL
 
-                // 2. 连接到 SQLite（如果文件不存在会自动创建）
-                String url = "jdbc:sqlite:" + dbPath;
-                try (Connection conn = DriverManager.getConnection(url);
-                     Statement stmt = conn.createStatement()) {
-
-                    // 3. 逐条执行 SQL
-                    while (scanner.hasNext()) {
-                        String sql = scanner.next().trim();
-                        if (!sql.isEmpty()) {
-                            stmt.execute(sql);
-                        }
+                // 使用 Scanner 读取 InputStream 里的内容，并用分号分割多条 SQL
+                java.util.Scanner scanner = new java.util.Scanner(is, "UTF-8").useDelimiter(";");
+                while (scanner.hasNext()) {
+                    String sql = scanner.next().trim();
+                    if (!sql.isEmpty()) {
+                        stmt.execute(sql);
                     }
                 }
+                scanner.close();
+                is.close();
+
                 System.out.println("数据库及基础表初始化成功！");
             } catch (Exception e) {
                 e.printStackTrace();

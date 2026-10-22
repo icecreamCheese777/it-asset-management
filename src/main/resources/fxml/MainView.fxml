@@ -17,6 +17,11 @@
             <Button fx:id="btnNavLog" text="操作日志" onAction="#switchToLogList" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 14px; -fx-padding: 10;"/>
             <Button fx:id="btnNavCategory" text="分类管理" onAction="#switchToCategory" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 14px; -fx-padding: 10;"/>
             <Button fx:id="btnNavDept" text="部门管理" onAction="#switchToDept" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 14px; -fx-padding: 10;"/>
+            <Region VBox.vgrow="ALWAYS" />
+            <!-- 新增：系统操作按钮 -->
+            <Button text="备份数据库" onAction="#handleBackupDb" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #3498db; -fx-font-size: 13px; -fx-padding: 8;"/>
+            <Button text="恢复数据库" onAction="#handleRestoreDb" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #e67e22; -fx-font-size: 13px; -fx-padding: 8;"/>
+            <Button text="退出系统" onAction="#handleExit" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #e74c3c; -fx-font-size: 13px; -fx-padding: 8;"/>
         </VBox>
     </left>
 
@@ -59,11 +64,15 @@
                 <TableView fx:id="assetTable" VBox.vgrow="ALWAYS">
                     <columns>
                         <TableColumn fx:id="colAssetNo" text="资产编号" prefWidth="120"/>
-                        <TableColumn fx:id="colName" text="资产名称" prefWidth="150"/>
+                        <TableColumn fx:id="colName" text="资产名称" prefWidth="120"/>
                         <TableColumn fx:id="colCategory" text="类别" prefWidth="100"/>
                         <TableColumn fx:id="colDept" text="所属部门" prefWidth="100"/>
                         <TableColumn fx:id="colStatus" text="状态" prefWidth="80"/>
-                        <TableColumn fx:id="colParams" text="设备参数" prefWidth="200"/>
+                        <!-- 新增两列 -->
+                        <TableColumn fx:id="colUserName" text="使用人" prefWidth="100"/>
+                        <TableColumn fx:id="colPortNumber" text="端口号" prefWidth="80"/>
+
+                        <TableColumn fx:id="colParams" text="设备参数" prefWidth="150"/>
                         <TableColumn fx:id="colCreatedAt" text="入库时间" prefWidth="150"/>
                         <TableColumn fx:id="colUpdatedAt" text="更新时间" prefWidth="150"/>
                     </columns>
@@ -71,9 +80,51 @@
             </VBox>
 
             <!-- 2. 其他视图占位（目前先隐藏） -->
-            <Label fx:id="logListView" text="操作日志（开发中）" visible="false" managed="false" style="-fx-font-size: 24px; -fx-text-fill: gray;"/>
-            <Label fx:id="categoryView" text="分类管理（开发中）" visible="false" managed="false" style="-fx-font-size: 24px; -fx-text-fill: gray;"/>
-            <Label fx:id="deptView" text="部门管理（开发中）" visible="false" managed="false" style="-fx-font-size: 24px; -fx-text-fill: gray;"/>
+            <!-- 操作日志视图 -->
+            <VBox fx:id="logListView" spacing="10" style="-fx-padding: 15;" visible="false" managed="false">
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="系统操作审计记录" style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
+                    <Region HBox.hgrow="ALWAYS" />
+                    <Button text="刷新日志" onAction="#loadLogs" />
+                </HBox>
+                <TableView fx:id="logTable" VBox.vgrow="ALWAYS">
+                    <columns>
+                        <TableColumn fx:id="colLogTime" text="发生时间" prefWidth="150"/>
+                        <TableColumn fx:id="colLogAction" text="操作类型" prefWidth="100"/>
+                        <TableColumn fx:id="colLogAsset" text="操作资产" prefWidth="200"/>
+                        <TableColumn fx:id="colLogUser" text="涉及使用人" prefWidth="100"/>
+                        <TableColumn fx:id="colLogDetails" text="详细记录" prefWidth="400"/>
+                    </columns>
+                </TableView>
+            </VBox>
+            <!-- 分类管理视图 -->
+            <VBox fx:id="categoryView" spacing="10" style="-fx-padding: 15;" visible="false" managed="false">
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Button text="新增分类" onAction="#handleAddCategory" />
+                    <Button text="修改" onAction="#handleEditCategory" />
+                    <Button text="删除" onAction="#handleDeleteCategory" />
+                </HBox>
+                <TableView fx:id="categoryTable" VBox.vgrow="ALWAYS">
+                    <columns>
+                        <TableColumn fx:id="colCatId" text="分类ID" prefWidth="100"/>
+                        <TableColumn fx:id="colCatName" text="分类名称" prefWidth="300"/>
+                    </columns>
+                </TableView>
+            </VBox>
+            <!-- 部门管理视图 -->
+            <VBox fx:id="deptView" spacing="10" style="-fx-padding: 15;" visible="false" managed="false">
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Button text="新增部门" onAction="#handleAddDept" />
+                    <Button text="修改" onAction="#handleEditDept" />
+                    <Button text="删除" onAction="#handleDeleteDept" />
+                </HBox>
+                <TableView fx:id="deptTable" VBox.vgrow="ALWAYS">
+                    <columns>
+                        <TableColumn fx:id="colDeptId" text="部门ID" prefWidth="100"/>
+                        <TableColumn fx:id="colDeptName" text="部门名称" prefWidth="300"/>
+                    </columns>
+                </TableView>
+            </VBox>
 
         </StackPane>
     </center>

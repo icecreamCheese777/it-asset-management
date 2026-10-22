@@ -8,4 +8,16 @@
     <select id="selectAllDepartments" resultType="com.company.assetmgmt.itassetmanagement.model.Department">
         SELECT * FROM department
     </select>
+    <insert id="insertCategory" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO category (name) VALUES (#{name})
+    </insert>
+    <update id="updateCategory">
+        UPDATE category SET name = #{name} WHERE id = #{id}
+    </update>
+    <delete id="deleteCategory">
+        DELETE FROM category WHERE id = #{id}
+    </delete>
+    <select id="countAssetsByCategoryId" resultType="int">
+        SELECT COUNT(*) FROM asset WHERE category_id = #{categoryId}
+    </select>
 </mapper>

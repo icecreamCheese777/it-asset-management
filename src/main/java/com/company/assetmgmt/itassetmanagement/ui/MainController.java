@@ -5,9 +5,11 @@ import com.company.assetmgmt.itassetmanagement.infrastructure.db.MyBatisUtil;
 import com.company.assetmgmt.itassetmanagement.mapper.AssetMapper;
 import com.company.assetmgmt.itassetmanagement.mapper.CommonMapper;
 import com.company.assetmgmt.itassetmanagement.mapper.DepartmentMapper;
+import com.company.assetmgmt.itassetmanagement.mapper.LogMapper;
 import com.company.assetmgmt.itassetmanagement.model.Asset;
 import com.company.assetmgmt.itassetmanagement.model.Category;
 import com.company.assetmgmt.itassetmanagement.model.Department;
+import com.company.assetmgmt.itassetmanagement.model.OperationLog;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -38,26 +40,73 @@ import java.util.List;
 public class MainController {
 
     // ================= 视图组件注入 =================
-    @FXML private TableView<Asset> assetTable;
-    @FXML private TableColumn<Asset, String> colAssetNo;
-    @FXML private TableColumn<Asset, String> colName;
-    @FXML private TableColumn<Asset, String> colCategory;
-    @FXML private TableColumn<Asset, String> colDept;
-    @FXML private TableColumn<Asset, String> colStatus;
-    @FXML private TableColumn<Asset, String> colParams;
-    @FXML private TableColumn<Asset, LocalDateTime> colCreatedAt;
-    @FXML private TableColumn<Asset, LocalDateTime> colUpdatedAt;
+    @FXML
+    private TableView<Asset> assetTable;
+    @FXML
+    private TableColumn<Asset, String> colAssetNo;
+    @FXML
+    private TableColumn<Asset, String> colName;
+    @FXML
+    private TableColumn<Asset, String> colCategory;
+    @FXML
+    private TableColumn<Asset, String> colDept;
+    @FXML
+    private TableColumn<Asset, String> colStatus;
+    @FXML
+    private TableColumn<Asset, String> colParams;
+    @FXML
+    private TableColumn<Asset, LocalDateTime> colCreatedAt;
+    @FXML
+    private TableColumn<Asset, LocalDateTime> colUpdatedAt;
+    @FXML
+    private TableColumn<Asset, String> colUserName;
+    @FXML
+    private TableColumn<Asset, String> colPortNumber;
 
-    @FXML private TextField searchField;
+    @FXML
+    private TableView<Category> categoryTable;
+    @FXML
+    private TableColumn<Category, Integer> colCatId;
+    @FXML
+    private TableColumn<Category, String> colCatName;
+
+    @FXML
+    private VBox deptView;
+    @FXML
+    private TableView<Department> deptTable;
+    @FXML
+    private TableColumn<Department, Integer> colDeptId;
+    @FXML
+    private TableColumn<Department, String> colDeptName;
+
+    private ObservableList<Department> deptList = FXCollections.observableArrayList();
+    private ObservableList<Category> categoryList = FXCollections.observableArrayList();
+
+    @FXML
+    private TextField searchField;
+    @FXML
+    private TableView<OperationLog> logTable;
+    @FXML
+    private TableColumn<OperationLog, LocalDateTime> colLogTime;
+    @FXML
+    private TableColumn<OperationLog, String> colLogAction, colLogAsset, colLogUser, colLogDetails;
+    private ObservableList<OperationLog> logList = FXCollections.observableArrayList();
 
     // 导航栏按钮
-    @FXML private Button btnNavAsset, btnNavLog, btnNavCategory, btnNavDept;
+    @FXML
+    private Button btnNavAsset, btnNavLog, btnNavCategory, btnNavDept;
     // 视图容器
-    @FXML private VBox assetListView;
-    @FXML private Label logListView, categoryView, deptView;
+    @FXML
+    private VBox assetListView;
+    @FXML
+    private VBox logListView;
+    @FXML
+    private VBox categoryView;
 
     // 顶部过滤区
-    @FXML private FlowPane categoryFilterPane, statusFilterPane, deptFilterPane;
+    @FXML
+    private FlowPane categoryFilterPane, statusFilterPane, deptFilterPane;
+
 
     // ================= 数据与状态变量 =================
     private ObservableList<Asset> assetList = FXCollections.observableArrayList();
@@ -80,6 +129,8 @@ public class MainController {
         colParams.setCellValueFactory(new PropertyValueFactory<>("deviceParams"));
         colCreatedAt.setCellValueFactory(new PropertyValueFactory<>("createdAt"));
         colUpdatedAt.setCellValueFactory(new PropertyValueFactory<>("updatedAt"));
+        colUserName.setCellValueFactory(new PropertyValueFactory<>("userName"));
+        colPortNumber.setCellValueFactory(new PropertyValueFactory<>("portNumber"));
 
         // 2. 状态列渲染为中文
         colStatus.setCellFactory(column -> new TableCell<>() {
@@ -90,11 +141,20 @@ public class MainController {
                     setText(null);
                 } else {
                     switch (item) {
-                        case "IN_USE": setText("使用中"); break;
-                        case "IDLE": setText("闲置"); break;
-                        case "TO_BE_SCRAPPED": setText("待报废"); break;
-                        case "SCRAPPED": setText("报废"); break;
-                        default: setText(item);
+                        case "IN_USE":
+                            setText("使用中");
+                            break;
+                        case "IDLE":
+                            setText("闲置");
+                            break;
+                        case "TO_BE_SCRAPPED":
+                            setText("待报废");
+                            break;
+                        case "SCRAPPED":
+                            setText("报废");
+                            break;
+                        default:
+                            setText(item);
                     }
                 }
             }
@@ -136,23 +196,181 @@ public class MainController {
                 handleEditAsset();
             }
         });
+
+        // 初始化分类表格
+        colCatId.setCellValueFactory(new PropertyValueFactory<>("id"));
+        colCatName.setCellValueFactory(new PropertyValueFactory<>("name"));
+        categoryTable.setItems(categoryList);
+        loadCategories();
+
+        // 双击分类表格触发修改
+        categoryTable.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2 && categoryTable.getSelectionModel().getSelectedItem() != null) {
+                handleEditCategory();
+            }
+        });
+
+        colDeptId.setCellValueFactory(new PropertyValueFactory<>("id"));
+        colDeptName.setCellValueFactory(new PropertyValueFactory<>("name"));
+        deptTable.setItems(deptList);
+        loadDepartments();
+
+        deptTable.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2 && deptTable.getSelectionModel().getSelectedItem() != null) {
+                handleEditDept();
+            }
+        });
+        colLogTime.setCellValueFactory(new PropertyValueFactory<>("createdAt"));
+        colLogAction.setCellValueFactory(new PropertyValueFactory<>("action"));
+        colLogDetails.setCellValueFactory(new PropertyValueFactory<>("details"));
+        colLogUser.setCellValueFactory(new PropertyValueFactory<>("targetUser"));
+
+        // 拼接“资产名称+编号”显示
+        colLogAsset.setCellValueFactory(cellData -> {
+            OperationLog log = cellData.getValue();
+            String display = (log.getAssetName() != null ? log.getAssetName() : "未知")
+                    + " (" + (log.getAssetNo() != null ? log.getAssetNo() : "-") + ")";
+            return new javafx.beans.property.SimpleStringProperty(display);
+        });
+
+        // 时间格式化Variable 'formatter' is already defined in the scope
+        /*DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");*/
+        colLogTime.setCellFactory(column -> new TableCell<>() {
+            @Override
+            protected void updateItem(LocalDateTime item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.format(formatter));
+            }
+        });
+        logTable.setItems(logList);
+    }
+
+    @FXML
+    public void loadLogs() {
+        try (SqlSession session = MyBatisUtil.getSession()) {
+            logList.setAll(session.getMapper(LogMapper.class).selectAll());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void loadDepartments() {
+        try (SqlSession session = MyBatisUtil.getSession()) {
+            deptList.setAll(session.getMapper(DepartmentMapper.class).selectAll());
+        }
+    }
+
+    @FXML
+    public void handleAddCategory() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("新增分类");
+        dialog.setHeaderText("请输入新的分类名称");
+        dialog.setContentText("名称:");
+        dialog.showAndWait().ifPresent(name -> {
+            if (name.trim().isEmpty()) return;
+            try (SqlSession session = MyBatisUtil.getSession()) {
+                Category c = new Category();
+                c.setName(name.trim());
+                session.getMapper(CommonMapper.class).insertCategory(c);
+                session.commit();
+                loadCategories(); // 刷新表格
+                initFilterPanes(); // 刷新顶部的过滤胶囊按钮
+            } catch (Exception e) {
+                showAlert("错误", "分类可能已存在！");
+            }
+        });
+    }
+
+    @FXML
+    public void handleEditCategory() {
+        Category selected = categoryTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showAlert("提示", "请先选中要修改的分类！");
+            return;
+        }
+        TextInputDialog dialog = new TextInputDialog(selected.getName());
+        dialog.setTitle("修改分类");
+        dialog.setHeaderText("修改分类名称");
+        dialog.setContentText("名称:");
+        dialog.showAndWait().ifPresent(name -> {
+            if (name.trim().isEmpty()) return;
+            try (SqlSession session = MyBatisUtil.getSession()) {
+                selected.setName(name.trim());
+                session.getMapper(CommonMapper.class).updateCategory(selected);
+                session.commit();
+                loadCategories();
+                loadDataFromDatabase(); // 刷新资产列表（因为关联了类别名）
+                initFilterPanes(); // 刷新过滤按钮
+            } catch (Exception e) {
+                showAlert("错误", "修改失败");
+            }
+        });
+    }
+
+    @FXML
+    public void handleDeleteCategory() {
+        Category selected = categoryTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showAlert("提示", "请先选中要删除的分类！");
+            return;
+        }
+        try (SqlSession session = MyBatisUtil.getSession()) {
+            // 检查是否有资产在使用该分类
+            int count = session.getMapper(CommonMapper.class).countAssetsByCategoryId(selected.getId());
+            if (count > 0) {
+                showAlert("警告", "该分类下还有 " + count + " 个资产，无法删除！");
+                return;
+            }
+
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "确定要删除分类【" + selected.getName() + "】吗？");
+            confirm.setHeaderText(null);
+            if (confirm.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
+                session.getMapper(CommonMapper.class).deleteCategory(selected.getId());
+                session.commit();
+                loadCategories();
+                initFilterPanes(); // 刷新过滤按钮
+            }
+        } catch (Exception e) {
+            showAlert("错误", "删除失败：" + e.getMessage());
+        }
     }
 
     // ================= 导航栏切换逻辑 =================
-    @FXML public void switchToAssetList() { showView(assetListView, btnNavAsset); }
-    @FXML public void switchToLogList() { showView(logListView, btnNavLog); }
-    @FXML public void switchToCategory() { showView(categoryView, btnNavCategory); }
-    @FXML public void switchToDept() { showView(deptView, btnNavDept); }
+    @FXML
+    public void switchToAssetList() {
+        showView(assetListView, btnNavAsset);
+    }
+
+    @FXML
+    public void switchToLogList() {
+        showView(logListView, btnNavLog);
+        loadLogs();
+    }
+
+    @FXML
+    public void switchToCategory() {
+        showView(categoryView, btnNavCategory);
+    }
+
+    @FXML
+    public void switchToDept() {
+        showView(deptView, btnNavDept);
+    }
 
     private void showView(javafx.scene.Node targetView, Button activeBtn) {
         // 隐藏所有视图
-        assetListView.setVisible(false); assetListView.setManaged(false);
-        logListView.setVisible(false); logListView.setManaged(false);
-        categoryView.setVisible(false); categoryView.setManaged(false);
-        deptView.setVisible(false); deptView.setManaged(false);
+        assetListView.setVisible(false);
+        assetListView.setManaged(false);
+        logListView.setVisible(false);
+        logListView.setManaged(false);
+        categoryView.setVisible(false);
+        categoryView.setManaged(false);
+        deptView.setVisible(false);
+        deptView.setManaged(false);
 
         // 显示目标视图
-        targetView.setVisible(true); targetView.setManaged(true);
+        targetView.setVisible(true);
+        targetView.setManaged(true);
 
         // 重置所有按钮样式
         String normalStyle = "-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 14px; -fx-padding: 10;";
@@ -297,6 +515,15 @@ public class MainController {
                     session.commit();
                     assetList.remove(selectedAsset);
                     showAlert(Alert.AlertType.INFORMATION, "成功", "资产删除成功！");
+                    OperationLog log = new OperationLog();
+                    log.setAction("删除");
+                    log.setEntity("ASSET");
+                    log.setEntityId(selectedAsset.getId());
+                    log.setAssetNo(selectedAsset.getAssetNo());
+                    log.setAssetName(selectedAsset.getName());
+                    log.setTargetUser(selectedAsset.getUserName());
+                    log.setDetails("资产被移出系统。");
+                    session.getMapper(LogMapper.class).insertLog(log);
                 } catch (Exception e) {
                     e.printStackTrace();
                     showAlert("数据库错误", "删除失败：" + e.getMessage());
@@ -320,6 +547,8 @@ public class MainController {
 
         TextField assetNoField = new TextField();
         TextField nameField = new TextField();
+        TextField userNameField = new TextField();
+        TextField portNumberField = new TextField();
         ComboBox<Category> categoryBox = new ComboBox<>();
         ComboBox<Department> deptBox = new ComboBox<>();
         ComboBox<String> statusBox = new ComboBox<>();
@@ -327,6 +556,26 @@ public class MainController {
 
         statusBox.getItems().addAll("IN_USE", "IDLE", "TO_BE_SCRAPPED", "SCRAPPED");
         statusBox.setValue("IN_USE");
+        // 为状态下拉框添加中英文转换器
+        statusBox.setConverter(new javafx.util.StringConverter<String>() {
+            @Override
+            public String toString(String object) {
+                if (object == null) return null;
+                switch (object) {
+                    case "IN_USE": return "使用中";
+                    case "IDLE": return "闲置";
+                    case "TO_BE_SCRAPPED": return "待报废";
+                    case "SCRAPPED": return "报废";
+                    default: return object;
+                }
+            }
+
+            @Override
+            public String fromString(String string) {
+                // 因为我们是下拉选择，不需要用户手动输入，这里可以简单返回
+                return string;
+            }
+        });
 
         try (SqlSession session = MyBatisUtil.getSession()) {
             CommonMapper commonMapper = session.getMapper(CommonMapper.class);
@@ -335,15 +584,19 @@ public class MainController {
         }
 
         categoryBox.setCellFactory(param -> new ListCell<>() {
-            @Override protected void updateItem(Category item, boolean empty) {
-                super.updateItem(item, empty); setText(empty || item == null ? null : item.getName());
+            @Override
+            protected void updateItem(Category item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.getName());
             }
         });
         categoryBox.setButtonCell(categoryBox.getCellFactory().call(null));
 
         deptBox.setCellFactory(param -> new ListCell<>() {
-            @Override protected void updateItem(Department item, boolean empty) {
-                super.updateItem(item, empty); setText(empty || item == null ? null : item.getName());
+            @Override
+            protected void updateItem(Department item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.getName());
             }
         });
         deptBox.setButtonCell(deptBox.getCellFactory().call(null));
@@ -353,21 +606,39 @@ public class MainController {
             nameField.setText(editAsset.getName());
             statusBox.setValue(editAsset.getStatus());
             paramsField.setText(editAsset.getDeviceParams());
+            userNameField.setText(editAsset.getUserName() != null ? editAsset.getUserName() : "");
+            portNumberField.setText(editAsset.getPortNumber() != null ? editAsset.getPortNumber() : "");
 
             for (Category c : categoryBox.getItems()) {
-                if (c.getId().equals(editAsset.getCategoryId())) { categoryBox.setValue(c); break; }
+                if (c.getId().equals(editAsset.getCategoryId())) {
+                    categoryBox.setValue(c);
+                    break;
+                }
             }
             for (Department d : deptBox.getItems()) {
-                if (d.getId().equals(editAsset.getOwnerDeptId())) { deptBox.setValue(d); break; }
+                if (d.getId().equals(editAsset.getOwnerDeptId())) {
+                    deptBox.setValue(d);
+                    break;
+                }
             }
         }
 
-        grid.add(new Label("资产编号:"), 0, 0); grid.add(assetNoField, 1, 0);
-        grid.add(new Label("资产名称:"), 0, 1); grid.add(nameField, 1, 1);
-        grid.add(new Label("资产类别:"), 0, 2); grid.add(categoryBox, 1, 2);
-        grid.add(new Label("所属部门:"), 0, 3); grid.add(deptBox, 1, 3);
-        grid.add(new Label("状态:"), 0, 4); grid.add(statusBox, 1, 4);
-        grid.add(new Label("设备参数:"), 0, 5); grid.add(paramsField, 1, 5);
+        grid.add(new Label("资产编号:"), 0, 0);
+        grid.add(assetNoField, 1, 0);
+        grid.add(new Label("资产名称:"), 0, 1);
+        grid.add(nameField, 1, 1);
+        grid.add(new Label("资产类别:"), 0, 2);
+        grid.add(categoryBox, 1, 2);
+        grid.add(new Label("所属部门:"), 0, 3);
+        grid.add(deptBox, 1, 3);
+        grid.add(new Label("状态:"), 0, 4);
+        grid.add(statusBox, 1, 4);
+        grid.add(new Label("设备参数:"), 0, 5);
+        grid.add(paramsField, 1, 5);
+        grid.add(new Label("使用人:"), 0, 6);
+        grid.add(userNameField, 1, 6);
+        grid.add(new Label("端口号:"), 0, 7);
+        grid.add(portNumberField, 1, 7);
 
         dialog.getDialogPane().setContent(grid);
 
@@ -384,6 +655,8 @@ public class MainController {
                 resultAsset.setOwnerDeptId(deptBox.getValue() != null ? deptBox.getValue().getId() : null);
                 resultAsset.setStatus(statusBox.getValue());
                 resultAsset.setDeviceParams(paramsField.getText());
+                resultAsset.setUserName(userNameField.getText());
+                resultAsset.setPortNumber(portNumberField.getText());
                 return resultAsset;
             }
             return null;
@@ -392,13 +665,54 @@ public class MainController {
         dialog.showAndWait().ifPresent(resultAsset -> {
             try (SqlSession session = MyBatisUtil.getSession()) {
                 AssetMapper mapper = session.getMapper(AssetMapper.class);
+                LogMapper logMapper = session.getMapper(LogMapper.class);
+
+                OperationLog log = new OperationLog();
+                log.setEntity("ASSET");
+
                 if (editAsset == null) {
+                    // 新增
                     mapper.insert(resultAsset);
+
+                    log.setAction("新增");
+                    log.setEntityId(resultAsset.getId());
+                    log.setAssetNo(resultAsset.getAssetNo());
+                    log.setAssetName(resultAsset.getName());
+                    log.setTargetUser(resultAsset.getUserName());
+                    log.setDetails("新建资产，初始状态：" + resultAsset.getStatus());
                 } else {
+                    // 修改
+                    StringBuilder details = new StringBuilder();
+                    if (!editAsset.getStatus().equals(resultAsset.getStatus())) {
+                        details.append("状态从[").append(editAsset.getStatus()).append("]变更为[").append(resultAsset.getStatus()).append("]。");
+                    }
+                    if (!java.util.Objects.equals(editAsset.getUserName(), resultAsset.getUserName())) {
+                        details.append("使用人从[").append(editAsset.getUserName() == null ? "无" : editAsset.getUserName())
+                                .append("]变更为[").append(resultAsset.getUserName() == null ? "无" : resultAsset.getUserName()).append("]。");
+                    }
+
                     mapper.update(resultAsset);
+
+                    if (details.length() > 0) {
+                        log.setAction("修改");
+                        log.setEntityId(resultAsset.getId());
+                        log.setAssetNo(resultAsset.getAssetNo());
+                        log.setAssetName(resultAsset.getName());
+                        log.setTargetUser(resultAsset.getUserName());
+                        log.setDetails(details.toString());
+                    } else {
+                        log = null; // 如果没实质性修改，不记录
+                    }
                 }
+
+                if (log != null) {
+                    logMapper.insertLog(log);
+                }
+
                 session.commit();
-                loadDataFromDatabase();
+                loadDataFromDatabase(); // 刷新资产表
+                loadLogs(); // 刷新日志表
+
             } catch (Exception e) {
                 e.printStackTrace();
                 showAlert("数据库错误", "保存失败：" + e.getMessage());
@@ -406,94 +720,77 @@ public class MainController {
         });
     }
 
-    // ================= 部门管理 =================
     @FXML
-    public void handleManageDept() {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("部门管理");
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-
-        VBox vbox = new VBox(10);
-        vbox.setPadding(new Insets(10));
-
-        TableView<Department> deptTable = new TableView<>();
-        TableColumn<Department, String> colName = new TableColumn<>("部门名称");
-        colName.setCellValueFactory(new PropertyValueFactory<>("name"));
-        colName.setPrefWidth(200);
-        deptTable.getColumns().add(colName);
-        deptTable.setPrefHeight(200);
-
-        ObservableList<Department> deptList = FXCollections.observableArrayList();
-        deptTable.setItems(deptList);
-
-        HBox actionBox = new HBox(10);
-        TextField deptNameField = new TextField();
-        deptNameField.setPromptText("输入部门名称");
-        Button btnAdd = new Button("新增");
-        Button btnEdit = new Button("修改");
-        Button btnDel = new Button("删除");
-        actionBox.getChildren().addAll(deptNameField, btnAdd, btnEdit, btnDel);
-
-        vbox.getChildren().addAll(deptTable, actionBox);
-        dialog.getDialogPane().setContent(vbox);
-
-        Runnable refreshDept = () -> {
-            try (SqlSession session = MyBatisUtil.getSession()) {
-                deptList.setAll(session.getMapper(DepartmentMapper.class).selectAll());
-            }
-        };
-        refreshDept.run();
-
-        deptTable.setOnMouseClicked(e -> {
-            Department selected = deptTable.getSelectionModel().getSelectedItem();
-            if (selected != null) deptNameField.setText(selected.getName());
-        });
-
-        btnAdd.setOnAction(e -> {
-            String name = deptNameField.getText().trim();
-            if (name.isEmpty()) return;
+    public void handleAddDept() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("新增部门");
+        dialog.setHeaderText("请输入新的部门名称");
+        dialog.setContentText("名称:");
+        dialog.showAndWait().ifPresent(name -> {
+            if (name.trim().isEmpty()) return;
             try (SqlSession session = MyBatisUtil.getSession()) {
                 Department d = new Department();
-                d.setName(name);
+                d.setName(name.trim());
                 session.getMapper(DepartmentMapper.class).insert(d);
                 session.commit();
-                refreshDept.run();
-                deptNameField.clear();
-            } catch (Exception ex) { showAlert("错误", "该部门可能已存在！"); }
-        });
-
-        btnEdit.setOnAction(e -> {
-            Department selected = deptTable.getSelectionModel().getSelectedItem();
-            if (selected == null || deptNameField.getText().trim().isEmpty()) return;
-            try (SqlSession session = MyBatisUtil.getSession()) {
-                selected.setName(deptNameField.getText().trim());
-                session.getMapper(DepartmentMapper.class).update(selected);
-                session.commit();
-                refreshDept.run();
-                deptNameField.clear();
-            } catch (Exception ex) { showAlert("错误", "修改失败"); }
-        });
-
-        btnDel.setOnAction(e -> {
-            Department selected = deptTable.getSelectionModel().getSelectedItem();
-            if (selected == null) return;
-            try (SqlSession session = MyBatisUtil.getSession()) {
-                int count = session.getMapper(DepartmentMapper.class).countAssetsByDeptId(selected.getId());
-                if (count > 0) {
-                    showAlert("警告", "该部门下还有 " + count + " 个资产，无法删除！");
-                    return;
-                }
-                session.getMapper(DepartmentMapper.class).deleteById(selected.getId());
-                session.commit();
-                refreshDept.run();
-                deptNameField.clear();
+                loadDepartments();
+                initFilterPanes(); // 刷新顶部的过滤栏
+            } catch (Exception e) {
+                showAlert("错误", "部门可能已存在！");
             }
         });
+    }
 
-        dialog.showAndWait();
-        // 关闭弹窗后，刷新过滤栏和表格数据
-        initFilterPanes();
-        loadDataFromDatabase();
+    @FXML
+    public void handleEditDept() {
+        Department selected = deptTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showAlert("提示", "请先选中要修改的部门！");
+            return;
+        }
+        TextInputDialog dialog = new TextInputDialog(selected.getName());
+        dialog.setTitle("修改部门");
+        dialog.setHeaderText("修改部门名称");
+        dialog.setContentText("名称:");
+        dialog.showAndWait().ifPresent(name -> {
+            if (name.trim().isEmpty()) return;
+            try (SqlSession session = MyBatisUtil.getSession()) {
+                selected.setName(name.trim());
+                session.getMapper(DepartmentMapper.class).update(selected);
+                session.commit();
+                loadDepartments();
+                loadDataFromDatabase(); // 刷新资产列表
+                initFilterPanes(); // 刷新顶部过滤栏
+            } catch (Exception e) {
+                showAlert("错误", "修改失败");
+            }
+        });
+    }
+
+    @FXML
+    public void handleDeleteDept() {
+        Department selected = deptTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showAlert("提示", "请先选中要删除的部门！");
+            return;
+        }
+        try (SqlSession session = MyBatisUtil.getSession()) {
+            int count = session.getMapper(DepartmentMapper.class).countAssetsByDeptId(selected.getId());
+            if (count > 0) {
+                showAlert("警告", "该部门下还有 " + count + " 个资产，无法删除！");
+                return;
+            }
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "确定要删除部门【" + selected.getName() + "】吗？");
+            confirm.setHeaderText(null);
+            if (confirm.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
+                session.getMapper(DepartmentMapper.class).deleteById(selected.getId());
+                session.commit();
+                loadDepartments();
+                initFilterPanes();
+            }
+        } catch (Exception e) {
+            showAlert("错误", "删除失败：" + e.getMessage());
+        }
     }
 
     // ================= 导出与备份 =================
@@ -508,7 +805,7 @@ public class MainController {
 
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             XSSFSheet sheet = workbook.createSheet("资产数据");
-            String[] headers = {"ID", "资产编号", "名称", "类别", "部门", "状态", "设备参数", "入库时间"};
+            String[] headers = {"ID", "资产编号", "名称", "类别", "部门", "状态", "使用人", "端口号", "设备参数", "入库时间"};
             XSSFRow headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
                 headerRow.createCell(i).setCellValue(headers[i]);
@@ -523,8 +820,10 @@ public class MainController {
                 row.createCell(3).setCellValue(asset.getCategoryName());
                 row.createCell(4).setCellValue(asset.getDeptName());
                 row.createCell(5).setCellValue(asset.getStatus());
-                row.createCell(6).setCellValue(asset.getDeviceParams() != null ? asset.getDeviceParams() : "");
-                row.createCell(7).setCellValue(asset.getCreatedAt() != null ? asset.getCreatedAt().toString() : "");
+                row.createCell(6).setCellValue(asset.getUserName() != null ? asset.getUserName() : "");
+                row.createCell(7).setCellValue(asset.getPortNumber() != null ? asset.getPortNumber() : "");
+                row.createCell(8).setCellValue(asset.getDeviceParams() != null ? asset.getDeviceParams() : "");
+                row.createCell(9).setCellValue(asset.getCreatedAt() != null ? asset.getCreatedAt().toString() : "");
             }
 
             try (FileOutputStream out = new FileOutputStream(file)) {
@@ -616,6 +915,12 @@ public class MainController {
             }
             javafx.application.Platform.exit();
             System.exit(0);
+        }
+    }
+
+    private void loadCategories() {
+        try (SqlSession session = MyBatisUtil.getSession()) {
+            categoryList.setAll(session.getMapper(CommonMapper.class).selectAllCategories());
         }
     }
 

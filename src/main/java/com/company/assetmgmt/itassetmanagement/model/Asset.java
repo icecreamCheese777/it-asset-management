@@ -7,6 +7,8 @@ public class Asset {
     private String assetNo;
     private String name;
     private Integer categoryId;
+    private String userName;    // 使用人
+    private String portNumber;  // 端口号
     private String status;
     private Integer ownerDeptId;
     private String deviceParams;
@@ -103,5 +105,21 @@ public class Asset {
 
     public void setDeptName(String deptName) {
         this.deptName = deptName;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+
+    public String getPortNumber() {
+        return portNumber;
+    }
+
+    public void setPortNumber(String portNumber) {
+        this.portNumber = portNumber;
     }
 }
