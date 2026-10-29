@@ -1,15 +1,17 @@
-package com.company.assetmgmt.itassetmanagement.ui;
+package com.company.assetmgmt.itassetmanagement.controller;
 
-import com.company.assetmgmt.itassetmanagement.infrastructure.db.DatabaseManager;
-import com.company.assetmgmt.itassetmanagement.infrastructure.db.MyBatisUtil;
-import com.company.assetmgmt.itassetmanagement.mapper.AssetMapper;
-import com.company.assetmgmt.itassetmanagement.mapper.CommonMapper;
-import com.company.assetmgmt.itassetmanagement.mapper.DepartmentMapper;
-import com.company.assetmgmt.itassetmanagement.mapper.LogMapper;
 import com.company.assetmgmt.itassetmanagement.model.Asset;
+import com.company.assetmgmt.itassetmanagement.model.AssetStatus;
 import com.company.assetmgmt.itassetmanagement.model.Category;
 import com.company.assetmgmt.itassetmanagement.model.Department;
 import com.company.assetmgmt.itassetmanagement.model.OperationLog;
+import com.company.assetmgmt.itassetmanagement.service.AssetService;
+import com.company.assetmgmt.itassetmanagement.service.BackupService;
+import com.company.assetmgmt.itassetmanagement.service.CategoryService;
+import com.company.assetmgmt.itassetmanagement.service.DepartmentService;
+import com.company.assetmgmt.itassetmanagement.service.LogService;
+import com.company.assetmgmt.itassetmanagement.service.ReportService;
+import com.company.assetmgmt.itassetmanagement.service.ServiceException;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -19,25 +21,24 @@ import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
-import org.apache.ibatis.session.SqlSession;
-import org.apache.poi.xssf.usermodel.XSSFRow;
-import org.apache.poi.xssf.usermodel.XSSFSheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 public class MainController {
+
+    // ================= 业务服务 =================
+    private final AssetService assetService = new AssetService();
+    private final CategoryService categoryService = new CategoryService();
+    private final DepartmentService departmentService = new DepartmentService();
+    private final LogService logService = new LogService();
+    private final BackupService backupService = new BackupService();
+    private final ReportService reportService = new ReportService();
 
     // ================= 视图组件注入 =================
     @FXML
@@ -137,26 +138,7 @@ public class MainController {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                } else {
-                    switch (item) {
-                        case "IN_USE":
-                            setText("使用中");
-                            break;
-                        case "IDLE":
-                            setText("闲置");
-                            break;
-                        case "TO_BE_SCRAPPED":
-                            setText("待报废");
-                            break;
-                        case "SCRAPPED":
-                            setText("报废");
-                            break;
-                        default:
-                            setText(item);
-                    }
-                }
+                setText(empty || item == null ? null : AssetStatus.labelOf(item));
             }
         });
 
@@ -247,16 +229,26 @@ public class MainController {
 
     @FXML
     public void loadLogs() {
-        try (SqlSession session = MyBatisUtil.getSession()) {
-            logList.setAll(session.getMapper(LogMapper.class).selectAll());
-        } catch (Exception e) {
-            e.printStackTrace();
+        try {
+            logList.setAll(logService.findAll());
+        } catch (RuntimeException e) {
+            showAlert("错误", "加载操作日志失败：" + messageOf(e));
+        }
+    }
+
+    private void loadCategories() {
+        try {
+            categoryList.setAll(categoryService.findAll());
+        } catch (RuntimeException e) {
+            showAlert("错误", "加载分类失败：" + messageOf(e));
         }
     }
 
     private void loadDepartments() {
-        try (SqlSession session = MyBatisUtil.getSession()) {
-            deptList.setAll(session.getMapper(DepartmentMapper.class).selectAll());
+        try {
+            deptList.setAll(departmentService.findAll());
+        } catch (RuntimeException e) {
+            showAlert("错误", "加载部门失败：" + messageOf(e));
         }
     }
 
@@ -268,15 +260,12 @@ public class MainController {
         dialog.setContentText("名称:");
         dialog.showAndWait().ifPresent(name -> {
             if (name.trim().isEmpty()) return;
-            try (SqlSession session = MyBatisUtil.getSession()) {
-                Category c = new Category();
-                c.setName(name.trim());
-                session.getMapper(CommonMapper.class).insertCategory(c);
-                session.commit();
-                loadCategories(); // 刷新表格
-                initFilterPanes(); // 刷新顶部的过滤胶囊按钮
-            } catch (Exception e) {
-                showAlert("错误", "分类可能已存在！");
+            try {
+                categoryService.create(name);
+                loadCategories();
+                initFilterPanes();
+            } catch (ServiceException e) {
+                showAlert("错误", e.getMessage());
             }
         });
     }
@@ -294,15 +283,13 @@ public class MainController {
         dialog.setContentText("名称:");
         dialog.showAndWait().ifPresent(name -> {
             if (name.trim().isEmpty()) return;
-            try (SqlSession session = MyBatisUtil.getSession()) {
-                selected.setName(name.trim());
-                session.getMapper(CommonMapper.class).updateCategory(selected);
-                session.commit();
+            try {
+                categoryService.rename(selected.getId(), name);
                 loadCategories();
-                loadDataFromDatabase(); // 刷新资产列表（因为关联了类别名）
-                initFilterPanes(); // 刷新过滤按钮
-            } catch (Exception e) {
-                showAlert("错误", "修改失败");
+                loadDataFromDatabase();
+                initFilterPanes();
+            } catch (ServiceException e) {
+                showAlert("错误", e.getMessage());
             }
         });
     }
@@ -314,24 +301,23 @@ public class MainController {
             showAlert("提示", "请先选中要删除的分类！");
             return;
         }
-        try (SqlSession session = MyBatisUtil.getSession()) {
-            // 检查是否有资产在使用该分类
-            int count = session.getMapper(CommonMapper.class).countAssetsByCategoryId(selected.getId());
-            if (count > 0) {
-                showAlert("警告", "该分类下还有 " + count + " 个资产，无法删除！");
+        try {
+            int assetCount = categoryService.countAssets(selected.getId());
+            if (assetCount > 0) {
+                showAlert("警告", "该分类下还有 " + assetCount + " 个资产，无法删除！");
                 return;
             }
 
-            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "确定要删除分类【" + selected.getName() + "】吗？");
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                    "确定要删除分类【" + selected.getName() + "】吗？");
             confirm.setHeaderText(null);
             if (confirm.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
-                session.getMapper(CommonMapper.class).deleteCategory(selected.getId());
-                session.commit();
+                categoryService.delete(selected.getId());
                 loadCategories();
-                initFilterPanes(); // 刷新过滤按钮
+                initFilterPanes();
             }
-        } catch (Exception e) {
-            showAlert("错误", "删除失败：" + e.getMessage());
+        } catch (ServiceException e) {
+            showAlert("错误", e.getMessage());
         }
     }
 
@@ -385,26 +371,35 @@ public class MainController {
 
     // ================= 数据加载与过滤 =================
     private void loadDataFromDatabase() {
-        try (SqlSession session = MyBatisUtil.getSession()) {
-            AssetMapper mapper = session.getMapper(AssetMapper.class);
-            List<Asset> list = mapper.selectAll();
-            assetList.clear();
-            assetList.addAll(list);
-        } catch (Exception e) {
-            e.printStackTrace();
+        try {
+            assetList.setAll(assetService.findAll());
+        } catch (RuntimeException e) {
+            showAlert("错误", "加载资产失败：" + messageOf(e));
         }
     }
 
     private void initFilterPanes() {
+        // 重建过滤按钮时，旧的筛选条件已经失效，统一回到“全部”。
+        currentCategoryId = null;
+        currentStatus = null;
+        currentDeptId = null;
+
+        List<Category> categories;
+        List<Department> departments;
+        try {
+            categories = categoryService.findAll();
+            departments = departmentService.findAll();
+        } catch (RuntimeException e) {
+            showAlert("错误", "加载筛选条件失败：" + messageOf(e));
+            return;
+        }
+
         // 1. 初始化分类过滤
         categoryFilterPane.getChildren().clear();
         ToggleGroup categoryGroup = new ToggleGroup();
         addFilterButton(categoryFilterPane, categoryGroup, "全部", null);
-        try (SqlSession session = MyBatisUtil.getSession()) {
-            List<Category> categories = session.getMapper(CommonMapper.class).selectAllCategories();
-            for (Category c : categories) {
-                addFilterButton(categoryFilterPane, categoryGroup, c.getName(), c.getId());
-            }
+        for (Category category : categories) {
+            addFilterButton(categoryFilterPane, categoryGroup, category.getName(), category.getId());
         }
         categoryGroup.selectedToggleProperty().addListener((obs, oldV, newV) -> {
             if (newV == null) oldV.setSelected(true);
@@ -419,10 +414,9 @@ public class MainController {
         statusFilterPane.getChildren().clear();
         ToggleGroup statusGroup = new ToggleGroup();
         addFilterButton(statusFilterPane, statusGroup, "全部", null);
-        addFilterButton(statusFilterPane, statusGroup, "使用中", "IN_USE");
-        addFilterButton(statusFilterPane, statusGroup, "闲置", "IDLE");
-        addFilterButton(statusFilterPane, statusGroup, "待报废", "TO_BE_SCRAPPED");
-        addFilterButton(statusFilterPane, statusGroup, "报废", "SCRAPPED");
+        for (String code : AssetStatus.codes()) {
+            addFilterButton(statusFilterPane, statusGroup, AssetStatus.labelOf(code), code);
+        }
         statusGroup.selectedToggleProperty().addListener((obs, oldV, newV) -> {
             if (newV == null) oldV.setSelected(true);
             else {
@@ -436,11 +430,8 @@ public class MainController {
         deptFilterPane.getChildren().clear();
         ToggleGroup deptGroup = new ToggleGroup();
         addFilterButton(deptFilterPane, deptGroup, "全部", null);
-        try (SqlSession session = MyBatisUtil.getSession()) {
-            List<Department> depts = session.getMapper(DepartmentMapper.class).selectAll();
-            for (Department d : depts) {
-                addFilterButton(deptFilterPane, deptGroup, d.getName(), d.getId());
-            }
+        for (Department department : departments) {
+            addFilterButton(deptFilterPane, deptGroup, department.getName(), department.getId());
         }
         deptGroup.selectedToggleProperty().addListener((obs, oldV, newV) -> {
             if (newV == null) oldV.setSelected(true);
@@ -450,6 +441,8 @@ public class MainController {
                 performFilter();
             }
         });
+
+        performFilter();
     }
 
     private void addFilterButton(FlowPane pane, ToggleGroup group, String text, Object userData) {
@@ -509,24 +502,13 @@ public class MainController {
 
         confirmAlert.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
-                try (SqlSession session = MyBatisUtil.getSession()) {
-                    AssetMapper mapper = session.getMapper(AssetMapper.class);
-                    mapper.deleteById(selectedAsset.getId());
-                    session.commit();
-                    assetList.remove(selectedAsset);
+                try {
+                    assetService.delete(selectedAsset.getId());
+                    loadDataFromDatabase();
+                    loadLogs();
                     showAlert(Alert.AlertType.INFORMATION, "成功", "资产删除成功！");
-                    OperationLog log = new OperationLog();
-                    log.setAction("删除");
-                    log.setEntity("ASSET");
-                    log.setEntityId(selectedAsset.getId());
-                    log.setAssetNo(selectedAsset.getAssetNo());
-                    log.setAssetName(selectedAsset.getName());
-                    log.setTargetUser(selectedAsset.getUserName());
-                    log.setDetails("资产被移出系统。");
-                    session.getMapper(LogMapper.class).insertLog(log);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    showAlert("数据库错误", "删除失败：" + e.getMessage());
+                } catch (ServiceException e) {
+                    showAlert("删除失败", e.getMessage());
                 }
             }
         });
@@ -554,34 +536,35 @@ public class MainController {
         ComboBox<String> statusBox = new ComboBox<>();
         TextField paramsField = new TextField();
 
-        statusBox.getItems().addAll("IN_USE", "IDLE", "TO_BE_SCRAPPED", "SCRAPPED");
-        statusBox.setValue("IN_USE");
-        // 为状态下拉框添加中英文转换器
+        statusBox.getItems().setAll(AssetStatus.codes());
+        statusBox.setValue(AssetStatus.IN_USE.code());
         statusBox.setConverter(new javafx.util.StringConverter<String>() {
             @Override
             public String toString(String object) {
-                if (object == null) return null;
-                switch (object) {
-                    case "IN_USE": return "使用中";
-                    case "IDLE": return "闲置";
-                    case "TO_BE_SCRAPPED": return "待报废";
-                    case "SCRAPPED": return "报废";
-                    default: return object;
-                }
+                return AssetStatus.labelOf(object);
             }
 
             @Override
             public String fromString(String string) {
-                // 因为我们是下拉选择，不需要用户手动输入，这里可以简单返回
                 return string;
             }
         });
 
-        try (SqlSession session = MyBatisUtil.getSession()) {
-            CommonMapper commonMapper = session.getMapper(CommonMapper.class);
-            categoryBox.getItems().addAll(commonMapper.selectAllCategories());
-            deptBox.getItems().addAll(commonMapper.selectAllDepartments());
+        List<Category> categories;
+        List<Department> departments;
+        try {
+            categories = categoryService.findAll();
+            departments = departmentService.findAll();
+        } catch (RuntimeException e) {
+            showAlert("错误", "加载分类/部门失败：" + messageOf(e));
+            return;
         }
+        if (categories.isEmpty()) {
+            showAlert("提示", "请先在“分类管理”中新增资产类别！");
+            return;
+        }
+        categoryBox.getItems().setAll(categories);
+        deptBox.getItems().setAll(departments);
 
         categoryBox.setCellFactory(param -> new ListCell<>() {
             @Override
@@ -604,20 +587,21 @@ public class MainController {
         if (editAsset != null) {
             assetNoField.setText(editAsset.getAssetNo());
             nameField.setText(editAsset.getName());
-            statusBox.setValue(editAsset.getStatus());
+            statusBox.setValue(AssetStatus.isValid(editAsset.getStatus())
+                    ? editAsset.getStatus() : AssetStatus.IN_USE.code());
             paramsField.setText(editAsset.getDeviceParams());
             userNameField.setText(editAsset.getUserName() != null ? editAsset.getUserName() : "");
             portNumberField.setText(editAsset.getPortNumber() != null ? editAsset.getPortNumber() : "");
 
-            for (Category c : categoryBox.getItems()) {
-                if (c.getId().equals(editAsset.getCategoryId())) {
-                    categoryBox.setValue(c);
+            for (Category category : categoryBox.getItems()) {
+                if (category.getId().equals(editAsset.getCategoryId())) {
+                    categoryBox.setValue(category);
                     break;
                 }
             }
-            for (Department d : deptBox.getItems()) {
-                if (d.getId().equals(editAsset.getOwnerDeptId())) {
-                    deptBox.setValue(d);
+            for (Department department : deptBox.getItems()) {
+                if (department.getId().equals(editAsset.getOwnerDeptId())) {
+                    deptBox.setValue(department);
                     break;
                 }
             }
@@ -643,79 +627,46 @@ public class MainController {
         dialog.getDialogPane().setContent(grid);
 
         dialog.setResultConverter(dialogButton -> {
-            if (dialogButton == saveButtonType) {
-                if (assetNoField.getText().isEmpty() || nameField.getText().isEmpty()) {
-                    showAlert("错误", "资产编号和名称不能为空！");
-                    return null;
-                }
-                Asset resultAsset = (editAsset == null) ? new Asset() : editAsset;
-                resultAsset.setAssetNo(assetNoField.getText());
-                resultAsset.setName(nameField.getText());
-                resultAsset.setCategoryId(categoryBox.getValue() != null ? categoryBox.getValue().getId() : null);
-                resultAsset.setOwnerDeptId(deptBox.getValue() != null ? deptBox.getValue().getId() : null);
-                resultAsset.setStatus(statusBox.getValue());
-                resultAsset.setDeviceParams(paramsField.getText());
-                resultAsset.setUserName(userNameField.getText());
-                resultAsset.setPortNumber(portNumberField.getText());
-                return resultAsset;
+            if (dialogButton != saveButtonType) {
+                return null;
             }
-            return null;
+            String assetNo = assetNoField.getText() == null ? "" : assetNoField.getText().trim();
+            String name = nameField.getText() == null ? "" : nameField.getText().trim();
+            if (assetNo.isEmpty() || name.isEmpty()) {
+                showAlert("错误", "资产编号和名称不能为空！");
+                return null;
+            }
+            if (categoryBox.getValue() == null) {
+                showAlert("错误", "请选择资产类别！");
+                return null;
+            }
+
+            Asset result = new Asset();
+            if (editAsset != null) {
+                result.setId(editAsset.getId());
+            }
+            result.setAssetNo(assetNo);
+            result.setName(name);
+            result.setCategoryId(categoryBox.getValue().getId());
+            result.setOwnerDeptId(deptBox.getValue() == null ? null : deptBox.getValue().getId());
+            result.setStatus(statusBox.getValue());
+            result.setDeviceParams(paramsField.getText());
+            result.setUserName(userNameField.getText());
+            result.setPortNumber(portNumberField.getText());
+            return result;
         });
 
-        dialog.showAndWait().ifPresent(resultAsset -> {
-            try (SqlSession session = MyBatisUtil.getSession()) {
-                AssetMapper mapper = session.getMapper(AssetMapper.class);
-                LogMapper logMapper = session.getMapper(LogMapper.class);
-
-                OperationLog log = new OperationLog();
-                log.setEntity("ASSET");
-
+        dialog.showAndWait().ifPresent(result -> {
+            try {
                 if (editAsset == null) {
-                    // 新增
-                    mapper.insert(resultAsset);
-
-                    log.setAction("新增");
-                    log.setEntityId(resultAsset.getId());
-                    log.setAssetNo(resultAsset.getAssetNo());
-                    log.setAssetName(resultAsset.getName());
-                    log.setTargetUser(resultAsset.getUserName());
-                    log.setDetails("新建资产，初始状态：" + resultAsset.getStatus());
+                    assetService.create(result);
                 } else {
-                    // 修改
-                    StringBuilder details = new StringBuilder();
-                    if (!editAsset.getStatus().equals(resultAsset.getStatus())) {
-                        details.append("状态从[").append(editAsset.getStatus()).append("]变更为[").append(resultAsset.getStatus()).append("]。");
-                    }
-                    if (!java.util.Objects.equals(editAsset.getUserName(), resultAsset.getUserName())) {
-                        details.append("使用人从[").append(editAsset.getUserName() == null ? "无" : editAsset.getUserName())
-                                .append("]变更为[").append(resultAsset.getUserName() == null ? "无" : resultAsset.getUserName()).append("]。");
-                    }
-
-                    mapper.update(resultAsset);
-
-                    if (details.length() > 0) {
-                        log.setAction("修改");
-                        log.setEntityId(resultAsset.getId());
-                        log.setAssetNo(resultAsset.getAssetNo());
-                        log.setAssetName(resultAsset.getName());
-                        log.setTargetUser(resultAsset.getUserName());
-                        log.setDetails(details.toString());
-                    } else {
-                        log = null; // 如果没实质性修改，不记录
-                    }
+                    assetService.update(result);
                 }
-
-                if (log != null) {
-                    logMapper.insertLog(log);
-                }
-
-                session.commit();
-                loadDataFromDatabase(); // 刷新资产表
-                loadLogs(); // 刷新日志表
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                showAlert("数据库错误", "保存失败：" + e.getMessage());
+                loadDataFromDatabase();
+                loadLogs();
+            } catch (ServiceException e) {
+                showAlert("保存失败", e.getMessage());
             }
         });
     }
@@ -728,15 +679,12 @@ public class MainController {
         dialog.setContentText("名称:");
         dialog.showAndWait().ifPresent(name -> {
             if (name.trim().isEmpty()) return;
-            try (SqlSession session = MyBatisUtil.getSession()) {
-                Department d = new Department();
-                d.setName(name.trim());
-                session.getMapper(DepartmentMapper.class).insert(d);
-                session.commit();
+            try {
+                departmentService.create(name);
                 loadDepartments();
-                initFilterPanes(); // 刷新顶部的过滤栏
-            } catch (Exception e) {
-                showAlert("错误", "部门可能已存在！");
+                initFilterPanes();
+            } catch (ServiceException e) {
+                showAlert("错误", e.getMessage());
             }
         });
     }
@@ -754,15 +702,13 @@ public class MainController {
         dialog.setContentText("名称:");
         dialog.showAndWait().ifPresent(name -> {
             if (name.trim().isEmpty()) return;
-            try (SqlSession session = MyBatisUtil.getSession()) {
-                selected.setName(name.trim());
-                session.getMapper(DepartmentMapper.class).update(selected);
-                session.commit();
+            try {
+                departmentService.rename(selected.getId(), name);
                 loadDepartments();
-                loadDataFromDatabase(); // 刷新资产列表
-                initFilterPanes(); // 刷新顶部过滤栏
-            } catch (Exception e) {
-                showAlert("错误", "修改失败");
+                loadDataFromDatabase();
+                initFilterPanes();
+            } catch (ServiceException e) {
+                showAlert("错误", e.getMessage());
             }
         });
     }
@@ -774,22 +720,23 @@ public class MainController {
             showAlert("提示", "请先选中要删除的部门！");
             return;
         }
-        try (SqlSession session = MyBatisUtil.getSession()) {
-            int count = session.getMapper(DepartmentMapper.class).countAssetsByDeptId(selected.getId());
-            if (count > 0) {
-                showAlert("警告", "该部门下还有 " + count + " 个资产，无法删除！");
+        try {
+            int assetCount = departmentService.countAssets(selected.getId());
+            if (assetCount > 0) {
+                showAlert("警告", "该部门下还有 " + assetCount + " 个资产，无法删除！");
                 return;
             }
-            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "确定要删除部门【" + selected.getName() + "】吗？");
+
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                    "确定要删除部门【" + selected.getName() + "】吗？");
             confirm.setHeaderText(null);
             if (confirm.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
-                session.getMapper(DepartmentMapper.class).deleteById(selected.getId());
-                session.commit();
+                departmentService.delete(selected.getId());
                 loadDepartments();
                 initFilterPanes();
             }
-        } catch (Exception e) {
-            showAlert("错误", "删除失败：" + e.getMessage());
+        } catch (ServiceException e) {
+            showAlert("错误", e.getMessage());
         }
     }
 
@@ -803,37 +750,11 @@ public class MainController {
         File file = fileChooser.showSaveDialog(assetTable.getScene().getWindow());
         if (file == null) return;
 
-        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
-            XSSFSheet sheet = workbook.createSheet("资产数据");
-            String[] headers = {"ID", "资产编号", "名称", "类别", "部门", "状态", "使用人", "端口号", "设备参数", "入库时间"};
-            XSSFRow headerRow = sheet.createRow(0);
-            for (int i = 0; i < headers.length; i++) {
-                headerRow.createCell(i).setCellValue(headers[i]);
-            }
-
-            int rowNum = 1;
-            for (Asset asset : filteredData) {
-                XSSFRow row = sheet.createRow(rowNum++);
-                row.createCell(0).setCellValue(asset.getId());
-                row.createCell(1).setCellValue(asset.getAssetNo());
-                row.createCell(2).setCellValue(asset.getName());
-                row.createCell(3).setCellValue(asset.getCategoryName());
-                row.createCell(4).setCellValue(asset.getDeptName());
-                row.createCell(5).setCellValue(asset.getStatus());
-                row.createCell(6).setCellValue(asset.getUserName() != null ? asset.getUserName() : "");
-                row.createCell(7).setCellValue(asset.getPortNumber() != null ? asset.getPortNumber() : "");
-                row.createCell(8).setCellValue(asset.getDeviceParams() != null ? asset.getDeviceParams() : "");
-                row.createCell(9).setCellValue(asset.getCreatedAt() != null ? asset.getCreatedAt().toString() : "");
-            }
-
-            try (FileOutputStream out = new FileOutputStream(file)) {
-                workbook.write(out);
-            }
+        try {
+            reportService.exportAssets(filteredData, file.toPath());
             showAlert(Alert.AlertType.INFORMATION, "成功", "报表导出成功！路径：" + file.getAbsolutePath());
-
         } catch (Exception e) {
-            e.printStackTrace();
-            showAlert("错误", "导出失败：" + e.getMessage());
+            showAlert("错误", "导出失败：" + messageOf(e));
         }
     }
 
@@ -847,20 +768,18 @@ public class MainController {
 
         if (targetFile != null) {
             try {
-                Path source = Paths.get(DatabaseManager.getDbPath());
-                Path target = targetFile.toPath();
-                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+                backupService.backupTo(targetFile.toPath());
                 showAlert(Alert.AlertType.INFORMATION, "成功", "数据库已备份至：" + targetFile.getAbsolutePath());
             } catch (Exception e) {
-                e.printStackTrace();
-                showAlert("错误", "备份失败：" + e.getMessage());
+                showAlert("错误", "备份失败：" + messageOf(e));
             }
         }
     }
 
     @FXML
     public void handleRestoreDb() {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "恢复数据库会覆盖当前所有数据，且需要重启软件。确定继续吗？");
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "恢复数据库会覆盖当前所有数据，且软件需要重启。确定继续吗？");
         confirm.setHeaderText(null);
         if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
 
@@ -871,15 +790,13 @@ public class MainController {
 
         if (sourceFile != null) {
             try {
-                Path source = sourceFile.toPath();
-                Path target = Paths.get(DatabaseManager.getDbPath());
-                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-
-                showAlert(Alert.AlertType.INFORMATION, "提示", "数据库恢复成功！请手动关闭软件并重新打开。");
+                Path safetyBackup = backupService.restoreFrom(sourceFile.toPath());
+                showAlert(Alert.AlertType.INFORMATION, "提示",
+                        "数据库恢复成功！\n原数据库已备份至：\n" + safetyBackup.toAbsolutePath()
+                                + "\n软件将退出，请重新打开。");
                 System.exit(0);
             } catch (Exception e) {
-                e.printStackTrace();
-                showAlert("错误", "恢复失败：" + e.getMessage());
+                showAlert("错误", "恢复失败：" + messageOf(e));
             }
         }
     }
@@ -893,23 +810,7 @@ public class MainController {
 
         if (alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
             try {
-                File backupDir = new File("backup");
-                if (!backupDir.exists()) backupDir.mkdirs();
-
-                String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-                File backupFile = new File(backupDir, "asset_" + timestamp + ".db");
-
-                Path source = Paths.get(DatabaseManager.getDbPath());
-                Path target = backupFile.toPath();
-                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-
-                File[] dbFiles = backupDir.listFiles((dir, name) -> name.endsWith(".db"));
-                if (dbFiles != null && dbFiles.length > 10) {
-                    java.util.Arrays.sort(dbFiles, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
-                    for (int i = 10; i < dbFiles.length; i++) {
-                        dbFiles[i].delete();
-                    }
-                }
+                backupService.autoBackup();
             } catch (Exception e) {
                 System.err.println("自动备份失败: " + e.getMessage());
             }
@@ -918,13 +819,12 @@ public class MainController {
         }
     }
 
-    private void loadCategories() {
-        try (SqlSession session = MyBatisUtil.getSession()) {
-            categoryList.setAll(session.getMapper(CommonMapper.class).selectAllCategories());
-        }
+    // ================= 通用提示框 =================
+    private String messageOf(Throwable error) {
+        String message = error.getMessage();
+        return message == null || message.isBlank() ? error.getClass().getSimpleName() : message;
     }
 
-    // ================= 通用提示框 =================
     private void showAlert(String title, String content) {
         showAlert(Alert.AlertType.ERROR, title, content);
     }

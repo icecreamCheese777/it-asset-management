@@ -1,0 +1,1 @@
+D:\Java\jdk-21\bin\jpackage.exe --type exe --name "ITAssetMgmt" --input target --main-jar app-1.0-SNAPSHOT.jar --main-class com.company.assetmgmt.itassetmanagement.Launcher --icon src/main/resources/icon/app.ico --win-shortcut --win-menu --win-dir-chooser --dest dist
