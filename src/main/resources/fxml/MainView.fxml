@@ -85,15 +85,17 @@
                 <HBox spacing="10" alignment="CENTER_LEFT">
                     <Label text="系统操作审计记录" style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
                     <Region HBox.hgrow="ALWAYS" />
+                    <Button text="清除一年以前" onAction="#handleClearOldLogs" />
                     <Button text="刷新日志" onAction="#loadLogs" />
                 </HBox>
                 <TableView fx:id="logTable" VBox.vgrow="ALWAYS">
                     <columns>
                         <TableColumn fx:id="colLogTime" text="发生时间" prefWidth="150"/>
-                        <TableColumn fx:id="colLogAction" text="操作类型" prefWidth="100"/>
+                        <TableColumn fx:id="colLogAction" text="操作类型" prefWidth="90"/>
                         <TableColumn fx:id="colLogAsset" text="操作资产" prefWidth="200"/>
                         <TableColumn fx:id="colLogUser" text="涉及使用人" prefWidth="100"/>
-                        <TableColumn fx:id="colLogDetails" text="详细记录" prefWidth="400"/>
+                        <TableColumn fx:id="colLogDetails" text="详细记录" prefWidth="360"/>
+                        <TableColumn fx:id="colLogOperation" text="操作" prefWidth="80"/>
                     </columns>
                 </TableView>
             </VBox>

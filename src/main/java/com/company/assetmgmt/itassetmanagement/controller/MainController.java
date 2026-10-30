@@ -15,6 +15,7 @@ import com.company.assetmgmt.itassetmanagement.service.ServiceException;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
@@ -28,6 +29,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 public class MainController {
@@ -91,6 +93,8 @@ public class MainController {
     private TableColumn<OperationLog, LocalDateTime> colLogTime;
     @FXML
     private TableColumn<OperationLog, String> colLogAction, colLogAsset, colLogUser, colLogDetails;
+    @FXML
+    private TableColumn<OperationLog, Void> colLogOperation;
     private ObservableList<OperationLog> logList = FXCollections.observableArrayList();
 
     // 导航栏按钮
@@ -224,6 +228,30 @@ public class MainController {
                 setText(empty || item == null ? null : item.format(formatter));
             }
         });
+
+        // 每行日志末尾的删除按钮
+        colLogOperation.setCellFactory(column -> new TableCell<>() {
+            private final Button deleteButton = new Button("删除");
+
+            {
+                deleteButton.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; "
+                        + "-fx-font-size: 12px; -fx-padding: 2 8; -fx-cursor: hand;");
+                deleteButton.setOnAction(event -> {
+                    OperationLog log = getTableRow() == null ? null : getTableRow().getItem();
+                    if (log != null) {
+                        handleDeleteLog(log);
+                    }
+                });
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : deleteButton);
+            }
+        });
+        colLogOperation.setSortable(false);
+
         logTable.setItems(logList);
     }
 
@@ -233,6 +261,47 @@ public class MainController {
             logList.setAll(logService.findAll());
         } catch (RuntimeException e) {
             showAlert("错误", "加载操作日志失败：" + messageOf(e));
+        }
+    }
+
+    @FXML
+    public void handleClearOldLogs() {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "确定要清除一年以前的所有操作日志吗？\n此操作不可恢复。");
+        confirm.setTitle("清除历史日志");
+        confirm.setHeaderText(null);
+        if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
+            return;
+        }
+
+        try {
+            int deleted = logService.deleteOlderThanOneYear();
+            loadLogs();
+            showAlert(Alert.AlertType.INFORMATION, "清理完成",
+                    deleted == 0 ? "没有需要清理的日志。" : "已删除 " + deleted + " 条一年以前的日志。");
+        } catch (ServiceException e) {
+            showAlert("清理失败", e.getMessage());
+        }
+    }
+
+    private void handleDeleteLog(OperationLog log) {
+        if (log == null || log.getId() == null) {
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "确定要删除这条操作日志吗？\n" + log.getAction() + "：" + log.getDetails());
+        confirm.setTitle("删除日志");
+        confirm.setHeaderText(null);
+        if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
+            return;
+        }
+
+        try {
+            logService.deleteById(log.getId());
+            loadLogs();
+        } catch (ServiceException e) {
+            showAlert("删除失败", e.getMessage());
         }
     }
 
@@ -515,7 +584,7 @@ public class MainController {
     }
 
     private void showAssetDialog(Asset editAsset) {
-        Dialog<Asset> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle(editAsset == null ? "新增资产" : "修改资产");
         dialog.setHeaderText(editAsset == null ? "请填写资产信息" : "请修改资产信息");
 
@@ -529,6 +598,7 @@ public class MainController {
 
         TextField assetNoField = new TextField();
         TextField nameField = new TextField();
+        nameField.setPromptText("不填则保存为 null");
         TextField userNameField = new TextField();
         TextField portNumberField = new TextField();
         ComboBox<Category> categoryBox = new ComboBox<>();
@@ -626,37 +696,36 @@ public class MainController {
 
         dialog.getDialogPane().setContent(grid);
 
-        dialog.setResultConverter(dialogButton -> {
-            if (dialogButton != saveButtonType) {
-                return null;
-            }
+        Button saveButton = (Button) dialog.getDialogPane().lookupButton(saveButtonType);
+        saveButton.addEventFilter(ActionEvent.ACTION, event -> {
             String assetNo = assetNoField.getText() == null ? "" : assetNoField.getText().trim();
-            String name = nameField.getText() == null ? "" : nameField.getText().trim();
-            if (assetNo.isEmpty() || name.isEmpty()) {
-                showAlert("错误", "资产编号和名称不能为空！");
-                return null;
+            if (assetNo.isEmpty()) {
+                showAlert("保存失败", "资产编号不能为空！");
+                event.consume();
+                return;
             }
             if (categoryBox.getValue() == null) {
-                showAlert("错误", "请选择资产类别！");
-                return null;
+                showAlert("保存失败", "请选择资产类别！");
+                event.consume();
+                return;
             }
+
+            String name = nameField.getText() == null ? "" : nameField.getText().trim();
 
             Asset result = new Asset();
             if (editAsset != null) {
                 result.setId(editAsset.getId());
             }
             result.setAssetNo(assetNo);
-            result.setName(name);
+            result.setName(name.isEmpty() ? "null" : name);
             result.setCategoryId(categoryBox.getValue().getId());
             result.setOwnerDeptId(deptBox.getValue() == null ? null : deptBox.getValue().getId());
             result.setStatus(statusBox.getValue());
             result.setDeviceParams(paramsField.getText());
             result.setUserName(userNameField.getText());
             result.setPortNumber(portNumberField.getText());
-            return result;
-        });
 
-        dialog.showAndWait().ifPresent(result -> {
+            saveButton.setDisable(true);
             try {
                 if (editAsset == null) {
                     assetService.create(result);
@@ -666,9 +735,17 @@ public class MainController {
                 loadDataFromDatabase();
                 loadLogs();
             } catch (ServiceException e) {
+                event.consume();
                 showAlert("保存失败", e.getMessage());
+            } catch (RuntimeException e) {
+                event.consume();
+                showAlert("保存失败", messageOf(e));
+            } finally {
+                saveButton.setDisable(false);
             }
         });
+
+        dialog.showAndWait();
     }
 
     @FXML
@@ -750,9 +827,17 @@ public class MainController {
         File file = fileChooser.showSaveDialog(assetTable.getScene().getWindow());
         if (file == null) return;
 
+        // 以当前表格中显示的数据为准（已经应用分类、状态、部门筛选和搜索条件）。
+        List<Asset> currentAssets = new ArrayList<>(assetTable.getItems());
+        if (currentAssets.isEmpty()) {
+            showAlert("提示", "当前表格没有可导出的资产。");
+            return;
+        }
+
         try {
-            reportService.exportAssets(filteredData, file.toPath());
-            showAlert(Alert.AlertType.INFORMATION, "成功", "报表导出成功！路径：" + file.getAbsolutePath());
+            reportService.exportAssets(currentAssets, file.toPath());
+            showAlert(Alert.AlertType.INFORMATION, "成功",
+                    "已导出当前表格中的 " + currentAssets.size() + " 条资产。\n路径：" + file.getAbsolutePath());
         } catch (Exception e) {
             showAlert("错误", "导出失败：" + messageOf(e));
         }

@@ -95,7 +95,9 @@ public class AssetService {
 
     private void normalize(Asset asset) {
         asset.setAssetNo(ServiceSupport.trimToNull(asset.getAssetNo()));
-        asset.setName(ServiceSupport.trimToNull(asset.getName()));
+        // 资产名称允许为空；为空时按业务约定保存为字符串 "null"。
+        String name = ServiceSupport.trimToNull(asset.getName());
+        asset.setName(name == null ? "null" : name);
         asset.setUserName(ServiceSupport.trimToNull(asset.getUserName()));
         asset.setPortNumber(ServiceSupport.trimToNull(asset.getPortNumber()));
         asset.setDeviceParams(ServiceSupport.trimToNull(asset.getDeviceParams()));
@@ -105,9 +107,6 @@ public class AssetService {
     private void validate(Asset asset) {
         if (asset.getAssetNo() == null) {
             throw new ServiceException("资产编号不能为空！");
-        }
-        if (asset.getName() == null) {
-            throw new ServiceException("资产名称不能为空！");
         }
         if (asset.getCategoryId() == null) {
             throw new ServiceException("请选择资产类别！");
