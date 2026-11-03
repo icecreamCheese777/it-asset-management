@@ -1,5 +1,6 @@
 package com.company.assetmgmt.itassetmanagement.model;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public class Asset {
@@ -12,6 +13,7 @@ public class Asset {
     private String status;
     private Integer ownerDeptId;
     private String deviceParams;
+    private BigDecimal repairCost; // 维修费用
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -121,5 +123,13 @@ public class Asset {
 
     public void setPortNumber(String portNumber) {
         this.portNumber = portNumber;
+    }
+
+    public BigDecimal getRepairCost() {
+        return repairCost;
+    }
+
+    public void setRepairCost(BigDecimal repairCost) {
+        this.repairCost = repairCost;
     }
 }

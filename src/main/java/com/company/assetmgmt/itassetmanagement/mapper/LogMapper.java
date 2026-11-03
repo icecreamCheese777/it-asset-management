@@ -8,6 +8,9 @@ public interface LogMapper {
 
     List<OperationLog> selectAll();
 
+    /** 只查询维修类日志，用于维修记录视图。 */
+    List<OperationLog> selectRepairLogs();
+
     int insertLog(OperationLog log);
 
     /** 删除单条日志。 */

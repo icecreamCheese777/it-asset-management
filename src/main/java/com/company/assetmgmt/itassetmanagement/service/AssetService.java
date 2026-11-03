@@ -8,6 +8,8 @@ import com.company.assetmgmt.itassetmanagement.model.AssetStatus;
 import com.company.assetmgmt.itassetmanagement.model.OperationLog;
 import org.apache.ibatis.session.SqlSession;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Objects;
 
@@ -35,6 +37,10 @@ public class AssetService {
                 }
                 writeLog(session, "新增", saved,
                         "新建资产，初始状态：" + AssetStatus.labelOf(saved.getStatus()));
+                if (AssetStatus.REPAIR.code().equals(saved.getStatus())) {
+                    writeLog(session, "维修", saved,
+                            "资产送修，维修费用：" + money(saved.getRepairCost()) + "。");
+                }
                 return saved;
             });
         } catch (RuntimeException e) {
@@ -64,6 +70,7 @@ public class AssetService {
                 if (!details.isEmpty()) {
                     writeLog(session, "修改", after, details);
                 }
+                writeRepairLogIfNeeded(session, before, after);
                 return after;
             });
         } catch (RuntimeException e) {
@@ -102,6 +109,15 @@ public class AssetService {
         asset.setPortNumber(ServiceSupport.trimToNull(asset.getPortNumber()));
         asset.setDeviceParams(ServiceSupport.trimToNull(asset.getDeviceParams()));
         asset.setStatus(ServiceSupport.trimToNull(asset.getStatus()));
+
+        if (AssetStatus.REPAIR.code().equals(asset.getStatus())) {
+            if (asset.getRepairCost() != null) {
+                asset.setRepairCost(asset.getRepairCost().setScale(2, RoundingMode.HALF_UP));
+            }
+        } else {
+            // 只有维修状态才保留维修费用，其他状态一律清空。
+            asset.setRepairCost(null);
+        }
     }
 
     private void validate(Asset asset) {
@@ -114,6 +130,14 @@ public class AssetService {
         if (!AssetStatus.isValid(asset.getStatus())) {
             throw new ServiceException("无效的资产状态：" + asset.getStatus());
         }
+        if (AssetStatus.REPAIR.code().equals(asset.getStatus())) {
+            if (asset.getRepairCost() == null) {
+                throw new ServiceException("请填写维修费用！");
+            }
+            if (asset.getRepairCost().signum() < 0) {
+                throw new ServiceException("维修费用不能为负数！");
+            }
+        }
     }
 
     private String describeChanges(Asset before, Asset after) {
@@ -124,6 +148,7 @@ public class AssetService {
         appendChange(details, "部门", departmentLabel(before), departmentLabel(after));
         appendChange(details, "状态",
                 AssetStatus.labelOf(before.getStatus()), AssetStatus.labelOf(after.getStatus()));
+        appendCostChange(details, "维修费用", before.getRepairCost(), after.getRepairCost());
         appendChange(details, "使用人", before.getUserName(), after.getUserName());
         appendChange(details, "端口号", before.getPortNumber(), after.getPortNumber());
         appendChange(details, "设备参数", before.getDeviceParams(), after.getDeviceParams());
@@ -135,6 +160,50 @@ public class AssetService {
             details.append(field)
                     .append("从[").append(display(before)).append("]")
                     .append("变更为[").append(display(after)).append("]。");
+        }
+    }
+
+    private void appendCostChange(StringBuilder details, String field,
+                                  BigDecimal before, BigDecimal after) {
+        if (!sameMoney(before, after)) {
+            details.append(field)
+                    .append("从[").append(moneyOrNone(before)).append("]")
+                    .append("变更为[").append(moneyOrNone(after)).append("]。");
+        }
+    }
+
+    private boolean sameMoney(BigDecimal before, BigDecimal after) {
+        if (before == null || after == null) {
+            return before == after;
+        }
+        return before.compareTo(after) == 0;
+    }
+
+    private String money(BigDecimal value) {
+        return value == null ? "未填写"
+                : value.setScale(2, RoundingMode.HALF_UP).toPlainString() + " 元";
+    }
+
+    private String moneyOrNone(BigDecimal value) {
+        return value == null ? "无" : money(value);
+    }
+
+    private void writeRepairLogIfNeeded(SqlSession session, Asset before, Asset after) {
+        boolean wasRepair = AssetStatus.REPAIR.code().equals(before.getStatus());
+        boolean isRepair = AssetStatus.REPAIR.code().equals(after.getStatus());
+
+        if (!wasRepair && isRepair) {
+            writeLog(session, "维修", after,
+                    "资产送修，维修费用：" + money(after.getRepairCost()) + "。");
+        } else if (wasRepair && isRepair
+                && !sameMoney(before.getRepairCost(), after.getRepairCost())) {
+            writeLog(session, "维修", after,
+                    "维修费用从[" + moneyOrNone(before.getRepairCost()) + "]变更为["
+                            + moneyOrNone(after.getRepairCost()) + "]。");
+        } else if (wasRepair && !isRepair) {
+            writeLog(session, "维修", after,
+                    "维修结束，状态变更为[" + AssetStatus.labelOf(after.getStatus())
+                            + "]，维修费用：" + money(before.getRepairCost()) + "。");
         }
     }
 

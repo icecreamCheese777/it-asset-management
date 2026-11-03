@@ -22,6 +22,10 @@ public class LogService {
         return MyBatisUtil.query(session -> session.getMapper(LogMapper.class).selectAll());
     }
 
+    public List<OperationLog> findRepairLogs() {
+        return MyBatisUtil.query(session -> session.getMapper(LogMapper.class).selectRepairLogs());
+    }
+
     public void deleteById(Integer logId) {
         if (logId == null) {
             throw new ServiceException("缺少日志 ID，无法删除。");

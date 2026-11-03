@@ -7,7 +7,8 @@
     <sql id="selectAssetWithNames">
         SELECT
             a.id, a.asset_no, a.name, a.category_id, a.status,
-            a.owner_dept_id, a.device_params, a.user_name, a.port_number, a.created_at, a.updated_at,
+            a.owner_dept_id, a.device_params, a.repair_cost,
+            a.user_name, a.port_number, a.created_at, a.updated_at,
             c.name AS categoryName,
             d.name AS deptName
         FROM asset a
@@ -17,7 +18,7 @@
 
     <select id="selectAll" resultType="com.company.assetmgmt.itassetmanagement.model.Asset">
         <include refid="selectAssetWithNames"/>
-        ORDER BY a.id DESC
+        ORDER BY a.asset_no COLLATE BINARY DESC
     </select>
 
     <select id="findById" resultType="com.company.assetmgmt.itassetmanagement.model.Asset">
@@ -27,8 +28,8 @@
 
     <!-- 插入资产，useGeneratedKeys 让数据库自动生成的自增ID回填到实体类中 -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO asset (asset_no, name, category_id, status, owner_dept_id, device_params, user_name, port_number)
-        VALUES (#{assetNo}, #{name}, #{categoryId}, #{status}, #{ownerDeptId}, #{deviceParams}, #{userName}, #{portNumber})
+        INSERT INTO asset (asset_no, name, category_id, status, owner_dept_id, device_params, repair_cost, user_name, port_number)
+        VALUES (#{assetNo}, #{name}, #{categoryId}, #{status}, #{ownerDeptId}, #{deviceParams}, #{repairCost}, #{userName}, #{portNumber})
     </insert>
 
     <delete id="deleteById">
@@ -43,6 +44,7 @@
             owner_dept_id = #{ownerDeptId},
             status = #{status},
             device_params = #{deviceParams},
+            repair_cost = #{repairCost},
             user_name = #{userName},
             port_number = #{portNumber},
             updated_at = CURRENT_TIMESTAMP

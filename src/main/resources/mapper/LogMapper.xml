@@ -6,6 +6,13 @@
         SELECT * FROM operation_log ORDER BY created_at DESC, id DESC
     </select>
 
+    <select id="selectRepairLogs" resultType="com.company.assetmgmt.itassetmanagement.model.OperationLog">
+        SELECT * FROM operation_log
+        WHERE action = '维修'
+          AND details LIKE '%资产送修，维修费用%'
+        ORDER BY created_at DESC, id DESC
+    </select>
+
     <insert id="insertLog">
         INSERT INTO operation_log (action, entity, entity_id, asset_no, asset_name, target_user, details)
         VALUES (#{action}, #{entity}, #{entityId}, #{assetNo}, #{assetName}, #{targetUser}, #{details})

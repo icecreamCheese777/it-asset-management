@@ -10,13 +10,14 @@
 
     <!-- 左侧导航栏 -->
     <left>
-        <VBox spacing="10" style="-fx-background-color: #2c3e50; -fx-padding: 20 10 20 10;" prefWidth="200">
-            <Label text="IT 资产管理系统" textFill="WHITE" style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-padding: 0 0 20 0;"/>
+        <VBox spacing="8" style="-fx-background-color: #2c3e50; -fx-padding: 20 6 20 6;" prefWidth="100" minWidth="100" maxWidth="100">
+            <Label text="IT 资产&#10;管理系统" textFill="WHITE" wrapText="true" alignment="CENTER" textAlignment="CENTER" maxWidth="Infinity" style="-fx-font-size: 15px; -fx-font-weight: bold; -fx-padding: 0 0 15 0;"/>
 
-            <Button fx:id="btnNavAsset" text="资产列表" onAction="#switchToAssetList" maxWidth="Infinity" style="-fx-background-color: #34495e; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10;"/>
-            <Button fx:id="btnNavLog" text="操作日志" onAction="#switchToLogList" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 14px; -fx-padding: 10;"/>
-            <Button fx:id="btnNavCategory" text="分类管理" onAction="#switchToCategory" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 14px; -fx-padding: 10;"/>
-            <Button fx:id="btnNavDept" text="部门管理" onAction="#switchToDept" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 14px; -fx-padding: 10;"/>
+            <Button fx:id="btnNavAsset" text="资产列表" onAction="#switchToAssetList" maxWidth="Infinity" style="-fx-background-color: #34495e; -fx-text-fill: white; -fx-font-size: 13px; -fx-padding: 8;"/>
+            <Button fx:id="btnNavLog" text="操作日志" onAction="#switchToLogList" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 13px; -fx-padding: 8;"/>
+            <Button fx:id="btnNavRepair" text="维修记录" onAction="#switchToRepair" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 13px; -fx-padding: 8;"/>
+            <Button fx:id="btnNavCategory" text="分类管理" onAction="#switchToCategory" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 13px; -fx-padding: 8;"/>
+            <Button fx:id="btnNavDept" text="部门管理" onAction="#switchToDept" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 13px; -fx-padding: 8;"/>
             <Region VBox.vgrow="ALWAYS" />
             <!-- 新增：系统操作按钮 -->
             <Button text="备份数据库" onAction="#handleBackupDb" maxWidth="Infinity" style="-fx-background-color: transparent; -fx-text-fill: #3498db; -fx-font-size: 13px; -fx-padding: 8;"/>
@@ -37,8 +38,9 @@
                     <Button text="修改" onAction="#handleEditAsset" />
                     <Button text="删除" onAction="#handleDeleteAsset" />
                     <Button text="导出报表" onAction="#handleExportExcel" />
+                    <Label fx:id="assetCountLabel" text="当前表格：0 条资产" style="-fx-text-fill: #2c3e50; -fx-font-weight: bold;"/>
                     <Region HBox.hgrow="ALWAYS" />
-                    <TextField fx:id="searchField" promptText="输入资产编号或名称搜索..." prefWidth="250"/>
+                    <TextField fx:id="searchField" promptText="输入资产编号或使用人搜索..." prefWidth="250"/>
                 </HBox>
 
                 <!-- 快捷过滤区 -->
@@ -63,18 +65,18 @@
                 <!-- 数据表格 -->
                 <TableView fx:id="assetTable" VBox.vgrow="ALWAYS">
                     <columns>
-                        <TableColumn fx:id="colAssetNo" text="资产编号" prefWidth="120"/>
-                        <TableColumn fx:id="colName" text="资产名称" prefWidth="120"/>
-                        <TableColumn fx:id="colCategory" text="类别" prefWidth="100"/>
-                        <TableColumn fx:id="colDept" text="所属部门" prefWidth="100"/>
-                        <TableColumn fx:id="colStatus" text="状态" prefWidth="80"/>
-                        <!-- 新增两列 -->
-                        <TableColumn fx:id="colUserName" text="使用人" prefWidth="100"/>
-                        <TableColumn fx:id="colPortNumber" text="端口号" prefWidth="80"/>
-
+                        <TableColumn fx:id="colAssetNo" text="资产编号" prefWidth="80"/>
+                        <TableColumn fx:id="colName" text="资产名称" prefWidth="90"/>
+                        <TableColumn fx:id="colCategory" text="类别" prefWidth="80"/>
+                        <TableColumn fx:id="colDept" text="所属部门" prefWidth="60"/>
+                        <TableColumn fx:id="colUserName" text="使用人" prefWidth="50"/>
+                        <TableColumn fx:id="colPortNumber" text="端口号" prefWidth="60"/>
                         <TableColumn fx:id="colParams" text="设备参数" prefWidth="150"/>
-                        <TableColumn fx:id="colCreatedAt" text="入库时间" prefWidth="150"/>
-                        <TableColumn fx:id="colUpdatedAt" text="更新时间" prefWidth="150"/>
+
+                        <!-- <TableColumn fx:id="colRepairCost" text="维修费用" prefWidth="90"/> -->
+                        <TableColumn fx:id="colCreatedAt" text="入库时间" prefWidth="90"/>
+                        <TableColumn fx:id="colUpdatedAt" text="更新时间" prefWidth="90"/>
+                        <TableColumn fx:id="colStatus" text="状态" prefWidth="70"/>
                     </columns>
                 </TableView>
             </VBox>
@@ -90,15 +92,34 @@
                 </HBox>
                 <TableView fx:id="logTable" VBox.vgrow="ALWAYS">
                     <columns>
-                        <TableColumn fx:id="colLogTime" text="发生时间" prefWidth="150"/>
-                        <TableColumn fx:id="colLogAction" text="操作类型" prefWidth="90"/>
-                        <TableColumn fx:id="colLogAsset" text="操作资产" prefWidth="200"/>
-                        <TableColumn fx:id="colLogUser" text="涉及使用人" prefWidth="100"/>
-                        <TableColumn fx:id="colLogDetails" text="详细记录" prefWidth="360"/>
+                        <TableColumn fx:id="colLogTime" text="发生时间" prefWidth="90"/>
+                        <TableColumn fx:id="colLogAction" text="操作类型" prefWidth="60"/>
+                        <TableColumn fx:id="colLogAsset" text="操作资产" prefWidth="130"/>
+                        <TableColumn fx:id="colLogUser" text="涉及使用人" prefWidth="60"/>
+                        <TableColumn fx:id="colLogDetails" text="详细记录" prefWidth="380"/>
                         <TableColumn fx:id="colLogOperation" text="操作" prefWidth="80"/>
                     </columns>
                 </TableView>
             </VBox>
+
+            <!-- 维修记录视图 -->
+            <VBox fx:id="repairView" spacing="10" style="-fx-padding: 15;" visible="false" managed="false">
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="资产维修记录" style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
+                    <Region HBox.hgrow="ALWAYS" />
+                    <Button text="导出维修记录" onAction="#handleExportRepairExcel" />
+                    <Button text="刷新" onAction="#loadRepairLogs" />
+                </HBox>
+                <TableView fx:id="repairTable" VBox.vgrow="ALWAYS">
+                    <columns>
+                        <TableColumn fx:id="colRepairTime" text="发生时间" prefWidth="150"/>
+                        <TableColumn fx:id="colRepairAsset" text="资产" prefWidth="100"/>
+                        <TableColumn fx:id="colRepairUser" text="使用人" prefWidth="100"/>
+                        <TableColumn fx:id="colRepairDetails" text="维修记录" prefWidth="450"/>
+                    </columns>
+                </TableView>
+            </VBox>
+
             <!-- 分类管理视图 -->
             <VBox fx:id="categoryView" spacing="10" style="-fx-padding: 15;" visible="false" managed="false">
                 <HBox spacing="10" alignment="CENTER_LEFT">

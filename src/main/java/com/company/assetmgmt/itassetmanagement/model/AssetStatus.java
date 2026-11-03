@@ -9,6 +9,7 @@ import java.util.List;
 public enum AssetStatus {
 
     IN_USE("使用中"),
+    REPAIR("维修"),
     IDLE("闲置"),
     TO_BE_SCRAPPED("待报废"),
     SCRAPPED("报废");

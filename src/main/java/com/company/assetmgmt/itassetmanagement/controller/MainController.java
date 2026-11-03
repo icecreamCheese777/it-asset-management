@@ -13,6 +13,7 @@ import com.company.assetmgmt.itassetmanagement.service.LogService;
 import com.company.assetmgmt.itassetmanagement.service.ReportService;
 import com.company.assetmgmt.itassetmanagement.service.ServiceException;
 import javafx.collections.FXCollections;
+import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.event.ActionEvent;
@@ -26,11 +27,14 @@ import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 
 import java.io.File;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class MainController {
 
@@ -55,6 +59,8 @@ public class MainController {
     private TableColumn<Asset, String> colDept;
     @FXML
     private TableColumn<Asset, String> colStatus;
+    @FXML
+    private TableColumn<Asset, BigDecimal> colRepairCost;
     @FXML
     private TableColumn<Asset, String> colParams;
     @FXML
@@ -97,14 +103,25 @@ public class MainController {
     private TableColumn<OperationLog, Void> colLogOperation;
     private ObservableList<OperationLog> logList = FXCollections.observableArrayList();
 
+    // 维修记录
+    @FXML
+    private TableView<OperationLog> repairTable;
+    @FXML
+    private TableColumn<OperationLog, LocalDateTime> colRepairTime;
+    @FXML
+    private TableColumn<OperationLog, String> colRepairAsset, colRepairUser, colRepairDetails;
+    private ObservableList<OperationLog> repairList = FXCollections.observableArrayList();
+
     // 导航栏按钮
     @FXML
-    private Button btnNavAsset, btnNavLog, btnNavCategory, btnNavDept;
+    private Button btnNavAsset, btnNavLog, btnNavRepair, btnNavCategory, btnNavDept;
     // 视图容器
     @FXML
     private VBox assetListView;
     @FXML
     private VBox logListView;
+    @FXML
+    private VBox repairView;
     @FXML
     private VBox categoryView;
 
@@ -116,6 +133,8 @@ public class MainController {
     // ================= 数据与状态变量 =================
     private ObservableList<Asset> assetList = FXCollections.observableArrayList();
     private FilteredList<Asset> filteredData;
+    @FXML
+    private Label assetCountLabel;
 
     // 当前选中的过滤条件
     private Integer currentCategoryId = null;
@@ -123,48 +142,73 @@ public class MainController {
     private Integer currentDeptId = null;
 
     // ================= 初始化 =================
+    private <T> void bindAssetColumn(TableColumn<Asset, T> column, String property) {
+        if (column != null) {
+            column.setCellValueFactory(new PropertyValueFactory<>(property));
+        }
+    }
+
     @FXML
     public void initialize() {
-        // 1. 绑定列数据
-        colAssetNo.setCellValueFactory(new PropertyValueFactory<>("assetNo"));
-        colName.setCellValueFactory(new PropertyValueFactory<>("name"));
-        colCategory.setCellValueFactory(new PropertyValueFactory<>("categoryName"));
-        colDept.setCellValueFactory(new PropertyValueFactory<>("deptName"));
-        colStatus.setCellValueFactory(new PropertyValueFactory<>("status"));
-        colParams.setCellValueFactory(new PropertyValueFactory<>("deviceParams"));
-        colCreatedAt.setCellValueFactory(new PropertyValueFactory<>("createdAt"));
-        colUpdatedAt.setCellValueFactory(new PropertyValueFactory<>("updatedAt"));
-        colUserName.setCellValueFactory(new PropertyValueFactory<>("userName"));
-        colPortNumber.setCellValueFactory(new PropertyValueFactory<>("portNumber"));
+        // 1. 绑定列数据。列在 FXML 中被注释掉时字段为 null，这里跳过即可。
+        bindAssetColumn(colAssetNo, "assetNo");
+        bindAssetColumn(colName, "name");
+        bindAssetColumn(colCategory, "categoryName");
+        bindAssetColumn(colDept, "deptName");
+        bindAssetColumn(colStatus, "status");
+        bindAssetColumn(colRepairCost, "repairCost");
+        bindAssetColumn(colParams, "deviceParams");
+        bindAssetColumn(colCreatedAt, "createdAt");
+        bindAssetColumn(colUpdatedAt, "updatedAt");
+        bindAssetColumn(colUserName, "userName");
+        bindAssetColumn(colPortNumber, "portNumber");
 
         // 2. 状态列渲染为中文
-        colStatus.setCellFactory(column -> new TableCell<>() {
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : AssetStatus.labelOf(item));
-            }
-        });
+        if (colStatus != null) {
+            colStatus.setCellFactory(column -> new TableCell<>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : AssetStatus.labelOf(item));
+                }
+            });
+        }
+
+        if (colRepairCost != null) {
+            colRepairCost.setCellFactory(column -> new TableCell<>() {
+                @Override
+                protected void updateItem(BigDecimal item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : (item == null ? "-"
+                            : item.setScale(2, RoundingMode.HALF_UP).toPlainString()));
+                }
+            });
+        }
 
         // 3. 时间列格式化
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-        colCreatedAt.setCellFactory(column -> new TableCell<>() {
-            @Override
-            protected void updateItem(LocalDateTime item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.format(formatter));
-            }
-        });
-        colUpdatedAt.setCellFactory(column -> new TableCell<>() {
-            @Override
-            protected void updateItem(LocalDateTime item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.format(formatter));
-            }
-        });
+        if (colCreatedAt != null) {
+            colCreatedAt.setCellFactory(column -> new TableCell<>() {
+                @Override
+                protected void updateItem(LocalDateTime item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.format(formatter));
+                }
+            });
+        }
+        if (colUpdatedAt != null) {
+            colUpdatedAt.setCellFactory(column -> new TableCell<>() {
+                @Override
+                protected void updateItem(LocalDateTime item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.format(formatter));
+                }
+            });
+        }
 
         // 4. 初始化列表与绑定
         filteredData = new FilteredList<>(assetList, p -> true);
+        filteredData.addListener((ListChangeListener<Asset>) change -> updateAssetCount());
         assetTable.setItems(filteredData);
 
         // 5. 监听搜索框
@@ -212,12 +256,8 @@ public class MainController {
         colLogUser.setCellValueFactory(new PropertyValueFactory<>("targetUser"));
 
         // 拼接“资产名称+编号”显示
-        colLogAsset.setCellValueFactory(cellData -> {
-            OperationLog log = cellData.getValue();
-            String display = (log.getAssetName() != null ? log.getAssetName() : "未知")
-                    + " (" + (log.getAssetNo() != null ? log.getAssetNo() : "-") + ")";
-            return new javafx.beans.property.SimpleStringProperty(display);
-        });
+        colLogAsset.setCellValueFactory(cellData ->
+                new javafx.beans.property.SimpleStringProperty(logAssetLabel(cellData.getValue())));
 
         // 时间格式化Variable 'formatter' is already defined in the scope
         /*DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");*/
@@ -253,6 +293,23 @@ public class MainController {
         colLogOperation.setSortable(false);
 
         logTable.setItems(logList);
+
+        // 维修记录表格
+        colRepairTime.setCellValueFactory(new PropertyValueFactory<>("createdAt"));
+        colRepairAsset.setCellValueFactory(cellData ->
+                new javafx.beans.property.SimpleStringProperty(logAssetLabel(cellData.getValue())));
+        colRepairUser.setCellValueFactory(new PropertyValueFactory<>("targetUser"));
+        colRepairDetails.setCellValueFactory(new PropertyValueFactory<>("details"));
+        colRepairTime.setCellFactory(column -> new TableCell<>() {
+            @Override
+            protected void updateItem(LocalDateTime item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.format(formatter));
+            }
+        });
+        repairTable.setItems(repairList);
+
+        updateAssetCount();
     }
 
     @FXML
@@ -262,6 +319,29 @@ public class MainController {
         } catch (RuntimeException e) {
             showAlert("错误", "加载操作日志失败：" + messageOf(e));
         }
+    }
+
+    @FXML
+    public void loadRepairLogs() {
+        try {
+            repairList.setAll(logService.findRepairLogs());
+        } catch (RuntimeException e) {
+            showAlert("错误", "加载维修记录失败：" + messageOf(e));
+        }
+    }
+
+    private void updateAssetCount() {
+        if (assetCountLabel != null && filteredData != null) {
+            assetCountLabel.setText("当前表格：" + filteredData.size() + " 条资产");
+        }
+    }
+
+    private String logAssetLabel(OperationLog log) {
+        if (log == null) {
+            return "";
+        }
+        return (log.getAssetName() != null ? log.getAssetName() : "未知")
+                + " (" + (log.getAssetNo() != null ? log.getAssetNo() : "-") + ")";
     }
 
     @FXML
@@ -403,6 +483,12 @@ public class MainController {
     }
 
     @FXML
+    public void switchToRepair() {
+        showView(repairView, btnNavRepair);
+        loadRepairLogs();
+    }
+
+    @FXML
     public void switchToCategory() {
         showView(categoryView, btnNavCategory);
     }
@@ -418,6 +504,8 @@ public class MainController {
         assetListView.setManaged(false);
         logListView.setVisible(false);
         logListView.setManaged(false);
+        repairView.setVisible(false);
+        repairView.setManaged(false);
         categoryView.setVisible(false);
         categoryView.setManaged(false);
         deptView.setVisible(false);
@@ -428,14 +516,15 @@ public class MainController {
         targetView.setManaged(true);
 
         // 重置所有按钮样式
-        String normalStyle = "-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 14px; -fx-padding: 10;";
+        String normalStyle = "-fx-background-color: transparent; -fx-text-fill: #bdc3c7; -fx-font-size: 13px; -fx-padding: 8;";
         btnNavAsset.setStyle(normalStyle);
         btnNavLog.setStyle(normalStyle);
+        btnNavRepair.setStyle(normalStyle);
         btnNavCategory.setStyle(normalStyle);
         btnNavDept.setStyle(normalStyle);
 
         // 高亮当前选中的按钮
-        activeBtn.setStyle("-fx-background-color: #34495e; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10;");
+        activeBtn.setStyle("-fx-background-color: #34495e; -fx-text-fill: white; -fx-font-size: 13px; -fx-padding: 8;");
     }
 
     // ================= 数据加载与过滤 =================
@@ -535,7 +624,7 @@ public class MainController {
 
             if (searchText.isEmpty()) return true;
             if (asset.getAssetNo() != null && asset.getAssetNo().toLowerCase().contains(searchText)) return true;
-            if (asset.getName() != null && asset.getName().toLowerCase().contains(searchText)) return true;
+            if (asset.getUserName() != null && asset.getUserName().toLowerCase().contains(searchText)) return true;
             return false;
         });
     }
@@ -605,6 +694,9 @@ public class MainController {
         ComboBox<Department> deptBox = new ComboBox<>();
         ComboBox<String> statusBox = new ComboBox<>();
         TextField paramsField = new TextField();
+        TextField repairCostField = new TextField();
+        repairCostField.setPromptText("选择维修状态后自动填写");
+        repairCostField.setDisable(true);
 
         statusBox.getItems().setAll(AssetStatus.codes());
         statusBox.setValue(AssetStatus.IN_USE.code());
@@ -660,6 +752,9 @@ public class MainController {
             statusBox.setValue(AssetStatus.isValid(editAsset.getStatus())
                     ? editAsset.getStatus() : AssetStatus.IN_USE.code());
             paramsField.setText(editAsset.getDeviceParams());
+            repairCostField.setText(editAsset.getRepairCost() == null ? ""
+                    : editAsset.getRepairCost().setScale(2, RoundingMode.HALF_UP).toPlainString());
+            repairCostField.setDisable(!AssetStatus.REPAIR.code().equals(statusBox.getValue()));
             userNameField.setText(editAsset.getUserName() != null ? editAsset.getUserName() : "");
             portNumberField.setText(editAsset.getPortNumber() != null ? editAsset.getPortNumber() : "");
 
@@ -677,6 +772,23 @@ public class MainController {
             }
         }
 
+        // 选择“维修”时立即弹出维修费用输入框；取消则退回原状态。
+        statusBox.valueProperty().addListener((observable, oldStatus, newStatus) -> {
+            if (AssetStatus.REPAIR.code().equals(newStatus)) {
+                Optional<BigDecimal> cost = promptRepairCost(repairCostField.getText());
+                if (cost.isPresent()) {
+                    repairCostField.setText(cost.get().setScale(2, RoundingMode.HALF_UP).toPlainString());
+                    repairCostField.setDisable(false);
+                } else {
+                    statusBox.setValue(oldStatus == null ? AssetStatus.IN_USE.code() : oldStatus);
+                    repairCostField.setDisable(true);
+                }
+            } else {
+                repairCostField.clear();
+                repairCostField.setDisable(true);
+            }
+        });
+
         grid.add(new Label("资产编号:"), 0, 0);
         grid.add(assetNoField, 1, 0);
         grid.add(new Label("资产名称:"), 0, 1);
@@ -693,6 +805,8 @@ public class MainController {
         grid.add(userNameField, 1, 6);
         grid.add(new Label("端口号:"), 0, 7);
         grid.add(portNumberField, 1, 7);
+        grid.add(new Label("维修费用:"), 0, 8);
+        grid.add(repairCostField, 1, 8);
 
         dialog.getDialogPane().setContent(grid);
 
@@ -712,6 +826,28 @@ public class MainController {
 
             String name = nameField.getText() == null ? "" : nameField.getText().trim();
 
+            BigDecimal repairCost = null;
+            if (AssetStatus.REPAIR.code().equals(statusBox.getValue())) {
+                String costText = repairCostField.getText() == null
+                        ? "" : repairCostField.getText().trim();
+                if (costText.isEmpty()) {
+                    showAlert("保存失败", "维修状态必须填写维修费用！");
+                    event.consume();
+                    return;
+                }
+                try {
+                    repairCost = new BigDecimal(costText);
+                    if (repairCost.signum() < 0) {
+                        throw new NumberFormatException("negative");
+                    }
+                    repairCost = repairCost.setScale(2, RoundingMode.HALF_UP);
+                } catch (NumberFormatException e) {
+                    showAlert("保存失败", "请输入有效的非负维修费用，例如 120.50");
+                    event.consume();
+                    return;
+                }
+            }
+
             Asset result = new Asset();
             if (editAsset != null) {
                 result.setId(editAsset.getId());
@@ -722,6 +858,7 @@ public class MainController {
             result.setOwnerDeptId(deptBox.getValue() == null ? null : deptBox.getValue().getId());
             result.setStatus(statusBox.getValue());
             result.setDeviceParams(paramsField.getText());
+            result.setRepairCost(repairCost);
             result.setUserName(userNameField.getText());
             result.setPortNumber(portNumberField.getText());
 
@@ -746,6 +883,33 @@ public class MainController {
         });
 
         dialog.showAndWait();
+    }
+
+    private Optional<BigDecimal> promptRepairCost(String initial) {
+        String value = initial == null ? "" : initial;
+        while (true) {
+            TextInputDialog dialog = new TextInputDialog(value);
+            dialog.setTitle("维修费用");
+            dialog.setHeaderText("请输入本次维修费用");
+            dialog.setContentText("金额（元）:");
+
+            Optional<String> input = dialog.showAndWait();
+            if (input.isEmpty()) {
+                return Optional.empty();
+            }
+
+            String text = input.get().trim();
+            try {
+                BigDecimal cost = new BigDecimal(text);
+                if (cost.signum() < 0) {
+                    throw new NumberFormatException("negative");
+                }
+                return Optional.of(cost.setScale(2, RoundingMode.HALF_UP));
+            } catch (NumberFormatException e) {
+                showAlert("输入错误", "请输入有效的非负金额，例如 120.50");
+                value = text;
+            }
+        }
     }
 
     @FXML
@@ -840,6 +1004,30 @@ public class MainController {
                     "已导出当前表格中的 " + currentAssets.size() + " 条资产。\n路径：" + file.getAbsolutePath());
         } catch (Exception e) {
             showAlert("错误", "导出失败：" + messageOf(e));
+        }
+    }
+
+    @FXML
+    public void handleExportRepairExcel() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("保存维修记录");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel 文件", "*.xlsx"));
+        fileChooser.setInitialFileName("维修记录.xlsx");
+        File file = fileChooser.showSaveDialog(assetTable.getScene().getWindow());
+        if (file == null) return;
+
+        List<OperationLog> records = new ArrayList<>(repairTable.getItems());
+        if (records.isEmpty()) {
+            showAlert("提示", "当前没有可导出的维修记录。");
+            return;
+        }
+
+        try {
+            reportService.exportRepairLogs(records, file.toPath());
+            showAlert(Alert.AlertType.INFORMATION, "成功",
+                    "已导出 " + records.size() + " 条维修记录。\n路径：" + file.getAbsolutePath());
+        } catch (Exception e) {
+            showAlert("错误", "导出维修记录失败：" + messageOf(e));
         }
     }
 

@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS asset (
                                      status TEXT NOT NULL,                  -- 状态：如"IN_USE"(使用中)、"IDLE"(闲置)、"SCRAPPED"(已报废)
                                      owner_dept_id INTEGER,                 -- 部门ID：关联部门表(department)，记录资产归属哪个部门
                                      device_params TEXT,                    -- 设备参数：记录硬件规格，如"i7/16G内存/512G固态"
+                                     repair_cost NUMERIC,                   -- 维修费用：仅维修状态使用
                                      created_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- 创建时间(即入库录入时间)：该资产被录入系统的精确时间
                                      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- 更新时间：该条记录最后一次被修改的时间
                                      FOREIGN KEY (category_id) REFERENCES category(id),

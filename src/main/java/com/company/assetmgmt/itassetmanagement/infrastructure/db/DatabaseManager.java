@@ -8,11 +8,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Scanner;
 
 /**
- * 数据库文件定位与首次建库。
+ * 数据库文件定位、首次建库与轻量升级。
  */
 public final class DatabaseManager {
 
@@ -37,15 +38,19 @@ public final class DatabaseManager {
     }
 
     /**
-     * 首次运行时创建表结构与基础数据；数据库已存在时不做任何修改。
+     * 首次运行时创建表结构与基础数据；已存在时执行兼容升级。
      */
     public static void initDatabase() {
         Path database = Paths.get(getDbPath());
         if (Files.exists(database)) {
             System.out.println("数据库已存在，路径：" + database.toAbsolutePath());
-            return;
+        } else {
+            createDatabase(database);
         }
+        ensureRepairCostColumn(database);
+    }
 
+    private static void createDatabase(Path database) {
         System.out.println("未检测到数据库，正在自动初始化...");
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + database);
              Statement statement = connection.createStatement();
@@ -69,6 +74,33 @@ public final class DatabaseManager {
         } catch (Exception e) {
             throw new IllegalStateException(
                     "数据库初始化失败：" + database.toAbsolutePath(), e);
+        }
+    }
+
+    /**
+     * 旧版本数据库没有 repair_cost 列，启动时自动补上，避免用户删库重建。
+     */
+    private static void ensureRepairCostColumn(Path database) {
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + database);
+             Statement statement = connection.createStatement()) {
+
+            boolean exists = false;
+            try (ResultSet columns = statement.executeQuery("PRAGMA table_info(asset)")) {
+                while (columns.next()) {
+                    if ("repair_cost".equalsIgnoreCase(columns.getString("name"))) {
+                        exists = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!exists) {
+                statement.execute("ALTER TABLE asset ADD COLUMN repair_cost NUMERIC");
+                System.out.println("数据库升级：asset 表已增加 repair_cost 字段");
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "数据库升级失败：" + database.toAbsolutePath(), e);
         }
     }
 }
