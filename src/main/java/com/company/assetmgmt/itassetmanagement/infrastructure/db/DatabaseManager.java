@@ -8,8 +8,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Scanner;
 
 /**
@@ -48,6 +51,8 @@ public final class DatabaseManager {
             createDatabase(database);
         }
         ensureRepairCostColumn(database);
+        ensureCategoryValueColumn(database);
+        rebuildAssetNumbers(database);
     }
 
     private static void createDatabase(Path database) {
@@ -101,6 +106,108 @@ public final class DatabaseManager {
         } catch (Exception e) {
             throw new IllegalStateException(
                     "数据库升级失败：" + database.toAbsolutePath(), e);
+        }
+    }
+
+    /**
+     * 旧版本数据库没有 category.value，补列、补默认分类值并建立唯一索引。
+     */
+    private static void ensureCategoryValueColumn(Path database) {
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + database);
+             Statement statement = connection.createStatement()) {
+
+            boolean exists = false;
+            try (ResultSet columns = statement.executeQuery("PRAGMA table_info(category)")) {
+                while (columns.next()) {
+                    if ("value".equalsIgnoreCase(columns.getString("name"))) {
+                        exists = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!exists) {
+                statement.execute("ALTER TABLE category ADD COLUMN value TEXT");
+                System.out.println("数据库升级：category 表已增加 value 字段");
+            }
+
+            Map<String, String> defaults = new LinkedHashMap<>();
+            defaults.put("笔记本电脑", "lpc");
+            defaults.put("台式电脑", "dpc");
+            defaults.put("显示器", "xsq");
+            defaults.put("办公外设", "office");
+            defaults.put("服务器设备", "server");
+            defaults.put("移动设备", "laptop");
+            defaults.put("网络设备", "net");
+            defaults.put("服务器", "srv");
+
+            try (PreparedStatement update = connection.prepareStatement(
+                    "UPDATE category SET value = ? "
+                            + "WHERE name = ? AND (value IS NULL OR TRIM(value) = '')")) {
+                for (Map.Entry<String, String> entry : defaults.entrySet()) {
+                    update.setString(1, entry.getValue());
+                    update.setString(2, entry.getKey());
+                    update.executeUpdate();
+                }
+            }
+
+            statement.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uk_category_value ON category(value)");
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "数据库升级失败：" + database.toAbsolutePath(), e);
+        }
+    }
+
+    /**
+     * 资产编号统一为“分类值-资产ID”。旧数据或分类值变化后启动时自动校正。
+     */
+    private static void rebuildAssetNumbers(Path database) {
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + database);
+             Statement statement = connection.createStatement()) {
+
+            int mismatched;
+            try (ResultSet count = statement.executeQuery("""
+                    SELECT COUNT(*)
+                    FROM asset a
+                    JOIN category c ON c.id = a.category_id
+                    WHERE c.value IS NOT NULL
+                      AND TRIM(c.value) <> ''
+                      AND a.asset_no <> (LOWER(TRIM(c.value)) || '-' || a.id)
+                    """)) {
+                count.next();
+                mismatched = count.getInt(1);
+            }
+
+            if (mismatched == 0) {
+                return;
+            }
+
+            connection.setAutoCommit(false);
+            try {
+                statement.executeUpdate("""
+                        UPDATE asset
+                        SET asset_no = '__rebuild__' || id
+                        WHERE category_id IN (
+                            SELECT id FROM category WHERE value IS NOT NULL AND TRIM(value) <> ''
+                        )
+                        """);
+                statement.executeUpdate("""
+                        UPDATE asset
+                        SET asset_no = (
+                            SELECT LOWER(TRIM(c.value)) FROM category c WHERE c.id = asset.category_id
+                        ) || '-' || id
+                        WHERE SUBSTR(asset_no, 1, 11) = '__rebuild__'
+                        """);
+                connection.commit();
+                System.out.println("数据库升级：已重建 " + mismatched + " 条资产编号");
+            } catch (Exception e) {
+                connection.rollback();
+                throw e;
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "资产编号重建失败：" + database.toAbsolutePath(), e);
         }
     }
 }

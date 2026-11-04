@@ -18,7 +18,11 @@
 
     <select id="selectAll" resultType="com.company.assetmgmt.itassetmanagement.model.Asset">
         <include refid="selectAssetWithNames"/>
-        ORDER BY a.asset_no COLLATE BINARY DESC
+        ORDER BY CASE WHEN d.name IS NULL OR TRIM(d.name) = '' THEN 1 ELSE 0 END,
+                 d.name DESC,
+                 a.user_name DESC,
+                 c.name DESC,
+                 a.id DESC
     </select>
 
     <select id="findById" resultType="com.company.assetmgmt.itassetmanagement.model.Asset">
@@ -35,6 +39,10 @@
     <delete id="deleteById">
         DELETE FROM asset WHERE id = #{id}
     </delete>
+
+    <update id="updateAssetNo">
+        UPDATE asset SET asset_no = #{assetNo} WHERE id = #{id}
+    </update>
 
     <update id="update">
         UPDATE asset

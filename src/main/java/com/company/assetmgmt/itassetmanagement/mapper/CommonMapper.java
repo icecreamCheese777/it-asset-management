@@ -6,6 +6,7 @@ import java.util.List;
 
 public interface CommonMapper {
     List<Category> selectAllCategories();
+    Category selectCategoryById(Integer id);
     List<Department> selectAllDepartments();
     // 新增分类
     int insertCategory(Category category);

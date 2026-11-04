@@ -3,7 +3,8 @@
 -- ==========================================
 CREATE TABLE IF NOT EXISTS category (
                                         id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键ID：系统自动递增的唯一标识
-                                        name TEXT NOT NULL UNIQUE              -- 类别名称：如"笔记本电脑"、"服务器"（不可重复）
+                                        name TEXT NOT NULL UNIQUE,             -- 类别名称：如"笔记本电脑"、"服务器"（不可重复）
+                                        value TEXT UNIQUE                      -- 分类值：用于生成资产编号，如 lpc、dpc
 );
 
 -- ==========================================
@@ -19,7 +20,7 @@ CREATE TABLE IF NOT EXISTS department (
 -- ==========================================
 CREATE TABLE IF NOT EXISTS asset (
                                      id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 主键ID：系统自动递增的唯一标识
-                                     asset_no TEXT NOT NULL UNIQUE,         -- 资产编号：人为赋予的业务编号，如"NB-2024-001"（不可重复）
+                                     asset_no TEXT NOT NULL UNIQUE,         -- 资产编号：自动生成，格式为“分类值-资产ID”，如"lpc-12"
                                      name TEXT NOT NULL,                    -- 资产名称：设备的名称，如"ThinkPad X1"
                                      category_id INTEGER NOT NULL,          -- 类别ID：关联资产类别表(category)，表明它是什么类型的资产
                                      user_name TEXT,                        --新增：使用人
@@ -52,8 +53,14 @@ CREATE TABLE IF NOT EXISTS operation_log (
 -- ==========================================
 -- 5. 插入基础测试数据
 -- ==========================================
-INSERT OR IGNORE INTO category (name) VALUES
-                                          ('笔记本电脑'), ('服务器'), ('台式电脑'), ('显示器');
+INSERT OR IGNORE INTO category (name, value) VALUES
+                                          ('笔记本电脑', 'lpc'),
+                                          ('台式电脑', 'dpc'),
+                                          ('显示器', 'xsq'),
+                                          ('办公外设', 'office'),
+                                          ('服务器设备', 'server'),
+                                          ('移动设备', 'laptop'),
+                                          ('网络设备', 'net');
 
 INSERT OR IGNORE INTO department (name) VALUES
                                             ('研发中心'), ('法规部'), ('质量部'), ('销售部'), ('业务部'), ('公共关系部'), ('财务部'), ('人力资源部'), ('渠道部'), ('国际部'), ('总经办部'), ('IT部'), ('关键客户部'), ('供应链管理部'), ('生产部');

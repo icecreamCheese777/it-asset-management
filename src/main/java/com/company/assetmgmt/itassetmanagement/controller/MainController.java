@@ -78,6 +78,8 @@ public class MainController {
     private TableColumn<Category, Integer> colCatId;
     @FXML
     private TableColumn<Category, String> colCatName;
+    @FXML
+    private TableColumn<Category, String> colCatValue;
 
     @FXML
     private VBox deptView;
@@ -148,6 +150,30 @@ public class MainController {
         }
     }
 
+    private String statusFill(String status) {
+        return switch (status) {
+            case "IN_USE" -> "#d4edda";
+            case "REPAIR" -> "#ffe0b2";
+            case "LENT" -> "#cce5ff";
+            case "IDLE" -> "#e2e3e5";
+            case "TO_BE_SCRAPPED" -> "#fff3cd";
+            case "SCRAPPED" -> "#f8d7da";
+            default -> "#f0f0f0";
+        };
+    }
+
+    private String statusText(String status) {
+        return switch (status) {
+            case "IN_USE" -> "#155724";
+            case "REPAIR" -> "#8a4b00";
+            case "LENT" -> "#004085";
+            case "IDLE" -> "#383d41";
+            case "TO_BE_SCRAPPED" -> "#856404";
+            case "SCRAPPED" -> "#721c24";
+            default -> "#333333";
+        };
+    }
+
     @FXML
     public void initialize() {
         // 1. 绑定列数据。列在 FXML 中被注释掉时字段为 null，这里跳过即可。
@@ -163,13 +189,21 @@ public class MainController {
         bindAssetColumn(colUserName, "userName");
         bindAssetColumn(colPortNumber, "portNumber");
 
-        // 2. 状态列渲染为中文
+        // 2. 状态列渲染为中文，并用不同底色填满单元格
         if (colStatus != null) {
             colStatus.setCellFactory(column -> new TableCell<>() {
                 @Override
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
-                    setText(empty || item == null ? null : AssetStatus.labelOf(item));
+                    if (empty || item == null) {
+                        setText(null);
+                        setStyle("");
+                    } else {
+                        setText(AssetStatus.labelOf(item));
+                        setStyle("-fx-background-color: " + statusFill(item)
+                                + "; -fx-text-fill: " + statusText(item)
+                                + "; -fx-font-weight: bold; -fx-alignment: CENTER;");
+                    }
                 }
             });
         }
@@ -230,6 +264,7 @@ public class MainController {
         // 初始化分类表格
         colCatId.setCellValueFactory(new PropertyValueFactory<>("id"));
         colCatName.setCellValueFactory(new PropertyValueFactory<>("name"));
+        colCatValue.setCellValueFactory(new PropertyValueFactory<>("value"));
         categoryTable.setItems(categoryList);
         loadCategories();
 
@@ -403,20 +438,7 @@ public class MainController {
 
     @FXML
     public void handleAddCategory() {
-        TextInputDialog dialog = new TextInputDialog();
-        dialog.setTitle("新增分类");
-        dialog.setHeaderText("请输入新的分类名称");
-        dialog.setContentText("名称:");
-        dialog.showAndWait().ifPresent(name -> {
-            if (name.trim().isEmpty()) return;
-            try {
-                categoryService.create(name);
-                loadCategories();
-                initFilterPanes();
-            } catch (ServiceException e) {
-                showAlert("错误", e.getMessage());
-            }
-        });
+        showCategoryDialog(null);
     }
 
     @FXML
@@ -426,19 +448,70 @@ public class MainController {
             showAlert("提示", "请先选中要修改的分类！");
             return;
         }
-        TextInputDialog dialog = new TextInputDialog(selected.getName());
-        dialog.setTitle("修改分类");
-        dialog.setHeaderText("修改分类名称");
-        dialog.setContentText("名称:");
-        dialog.showAndWait().ifPresent(name -> {
-            if (name.trim().isEmpty()) return;
+        showCategoryDialog(selected);
+    }
+
+    private void showCategoryDialog(Category editCategory) {
+        Dialog<Category> dialog = new Dialog<>();
+        dialog.setTitle(editCategory == null ? "新增分类" : "修改分类");
+        dialog.setHeaderText(editCategory == null ? "请输入分类名称和分类值" : "修改分类名称和分类值");
+
+        ButtonType saveButtonType = new ButtonType("保存", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 80, 10, 10));
+
+        TextField nameField = new TextField();
+        TextField valueField = new TextField();
+        valueField.setPromptText("如 lpc、dpc，用于生成资产编号");
+
+        if (editCategory != null) {
+            nameField.setText(editCategory.getName());
+            valueField.setText(editCategory.getValue());
+        }
+
+        grid.add(new Label("分类名称:"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("分类值:"), 0, 1);
+        grid.add(valueField, 1, 1);
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(button -> {
+            if (button != saveButtonType) {
+                return null;
+            }
+            String name = nameField.getText() == null ? "" : nameField.getText().trim();
+            String value = valueField.getText() == null ? "" : valueField.getText().trim();
+            if (name.isEmpty()) {
+                showAlert("保存失败", "分类名称不能为空！");
+                return null;
+            }
+            if (value.isEmpty()) {
+                showAlert("保存失败", "分类值不能为空！");
+                return null;
+            }
+            Category category = new Category();
+            category.setId(editCategory == null ? null : editCategory.getId());
+            category.setName(name);
+            category.setValue(value);
+            return category;
+        });
+
+        dialog.showAndWait().ifPresent(category -> {
             try {
-                categoryService.rename(selected.getId(), name);
+                if (editCategory == null) {
+                    categoryService.create(category.getName(), category.getValue());
+                } else {
+                    categoryService.rename(category.getId(), category.getName(), category.getValue());
+                }
                 loadCategories();
                 loadDataFromDatabase();
                 initFilterPanes();
             } catch (ServiceException e) {
-                showAlert("错误", e.getMessage());
+                showAlert("保存失败", e.getMessage());
             }
         });
     }
@@ -686,6 +759,9 @@ public class MainController {
         grid.setPadding(new Insets(20, 150, 10, 10));
 
         TextField assetNoField = new TextField();
+        assetNoField.setEditable(false);
+        assetNoField.setFocusTraversable(false);
+        assetNoField.setStyle("-fx-control-inner-background: #f2f2f2;");
         TextField nameField = new TextField();
         nameField.setPromptText("不填则保存为 null");
         TextField userNameField = new TextField();
@@ -772,6 +848,20 @@ public class MainController {
             }
         }
 
+        if (editAsset == null) {
+            assetNoField.setText("保存后自动生成");
+        }
+        categoryBox.valueProperty().addListener((observable, oldCategory, newCategory) ->
+                updateAssetNoPreview(assetNoField, newCategory, editAsset));
+        updateAssetNoPreview(assetNoField, categoryBox.getValue(), editAsset);
+
+        // 闲置状态没有部门。
+        boolean initiallyIdle = AssetStatus.IDLE.code().equals(statusBox.getValue());
+        if (initiallyIdle) {
+            deptBox.setValue(null);
+        }
+        deptBox.setDisable(initiallyIdle);
+
         // 选择“维修”时立即弹出维修费用输入框；取消则退回原状态。
         statusBox.valueProperty().addListener((observable, oldStatus, newStatus) -> {
             if (AssetStatus.REPAIR.code().equals(newStatus)) {
@@ -789,7 +879,16 @@ public class MainController {
             }
         });
 
-        grid.add(new Label("资产编号:"), 0, 0);
+        // 状态切换为闲置时立即清空并禁用部门；切回其它状态后恢复可选。
+        statusBox.valueProperty().addListener((observable, oldStatus, newStatus) -> {
+            boolean idle = AssetStatus.IDLE.code().equals(newStatus);
+            if (idle) {
+                deptBox.setValue(null);
+            }
+            deptBox.setDisable(idle);
+        });
+
+        grid.add(new Label("资产编号(自动):"), 0, 0);
         grid.add(assetNoField, 1, 0);
         grid.add(new Label("资产名称:"), 0, 1);
         grid.add(nameField, 1, 1);
@@ -812,12 +911,6 @@ public class MainController {
 
         Button saveButton = (Button) dialog.getDialogPane().lookupButton(saveButtonType);
         saveButton.addEventFilter(ActionEvent.ACTION, event -> {
-            String assetNo = assetNoField.getText() == null ? "" : assetNoField.getText().trim();
-            if (assetNo.isEmpty()) {
-                showAlert("保存失败", "资产编号不能为空！");
-                event.consume();
-                return;
-            }
             if (categoryBox.getValue() == null) {
                 showAlert("保存失败", "请选择资产类别！");
                 event.consume();
@@ -848,19 +941,31 @@ public class MainController {
                 }
             }
 
+            if (AssetStatus.LENT.code().equals(statusBox.getValue())) {
+                String userName = userNameField.getText() == null
+                        ? "" : userNameField.getText().trim();
+                if (userName.isEmpty()) {
+                    showAlert("保存失败", "出借状态必须填写使用人！");
+                    userNameField.requestFocus();
+                    event.consume();
+                    return;
+                }
+            }
+
             Asset result = new Asset();
             if (editAsset != null) {
                 result.setId(editAsset.getId());
             }
-            result.setAssetNo(assetNo);
             result.setName(name.isEmpty() ? "null" : name);
             result.setCategoryId(categoryBox.getValue().getId());
-            result.setOwnerDeptId(deptBox.getValue() == null ? null : deptBox.getValue().getId());
             result.setStatus(statusBox.getValue());
             result.setDeviceParams(paramsField.getText());
             result.setRepairCost(repairCost);
             result.setUserName(userNameField.getText());
             result.setPortNumber(portNumberField.getText());
+            result.setOwnerDeptId(AssetStatus.IDLE.code().equals(statusBox.getValue())
+                    ? null
+                    : (deptBox.getValue() == null ? null : deptBox.getValue().getId()));
 
             saveButton.setDisable(true);
             try {
@@ -883,6 +988,23 @@ public class MainController {
         });
 
         dialog.showAndWait();
+    }
+
+    private void updateAssetNoPreview(TextField field, Category category, Asset editAsset) {
+        if (category == null) {
+            field.setText(editAsset == null ? "保存后自动生成" : editAsset.getAssetNo());
+            return;
+        }
+        String value = category.getValue() == null ? "" : category.getValue().trim();
+        if (value.isEmpty()) {
+            field.setText("该分类未配置分类值");
+            return;
+        }
+        if (editAsset == null) {
+            field.setText(value.toLowerCase() + "-（保存后生成）");
+        } else {
+            field.setText(value.toLowerCase() + "-" + editAsset.getId());
+        }
     }
 
     private Optional<BigDecimal> promptRepairCost(String initial) {

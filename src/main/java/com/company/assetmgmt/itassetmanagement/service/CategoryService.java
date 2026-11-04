@@ -5,11 +5,16 @@ import com.company.assetmgmt.itassetmanagement.mapper.CommonMapper;
 import com.company.assetmgmt.itassetmanagement.model.Category;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.regex.Pattern;
 
 /**
- * 资产分类业务。
+ * 资产分类业务。分类值用于生成资产编号，例如 lpc-12。
  */
 public class CategoryService {
+
+    private static final Pattern VALUE_PATTERN = Pattern.compile("^[a-z0-9][a-z0-9_-]*$");
 
     public List<Category> findAll() {
         return MyBatisUtil.query(session -> session.getMapper(CommonMapper.class).selectAllCategories());
@@ -23,38 +28,55 @@ public class CategoryService {
                 session.getMapper(CommonMapper.class).countAssetsByCategoryId(categoryId));
     }
 
-    public Category create(String name) {
-        String cleaned = ServiceSupport.requireText(name, "分类名称不能为空！");
+    public Category create(String name, String value) {
+        String cleanedName = ServiceSupport.requireText(name, "分类名称不能为空！");
+        String cleanedValue = normalizeValue(value);
         try {
             return MyBatisUtil.inTransaction(session -> {
                 Category category = new Category();
-                category.setName(cleaned);
+                category.setName(cleanedName);
+                category.setValue(cleanedValue);
                 session.getMapper(CommonMapper.class).insertCategory(category);
                 return category;
             });
         } catch (RuntimeException e) {
-            throw ServiceSupport.translate(e, "分类名称已存在：" + cleaned, "保存分类");
+            throw ServiceSupport.translate(e,
+                    "分类名称或分类值已存在：" + cleanedName + " / " + cleanedValue, "保存分类");
         }
     }
 
-    public Category rename(Integer categoryId, String name) {
+    public Category rename(Integer categoryId, String name, String value) {
         if (categoryId == null) {
             throw new ServiceException("缺少分类 ID，无法修改。");
         }
-        String cleaned = ServiceSupport.requireText(name, "分类名称不能为空！");
+        String cleanedName = ServiceSupport.requireText(name, "分类名称不能为空！");
+        String cleanedValue = normalizeValue(value);
+
         try {
             return MyBatisUtil.inTransaction(session -> {
+                CommonMapper mapper = session.getMapper(CommonMapper.class);
+                Category existing = mapper.selectCategoryById(categoryId);
+                if (existing == null) {
+                    throw new ServiceException("分类不存在或已被删除。");
+                }
+                if (!Objects.equals(existing.getValue(), cleanedValue)
+                        && mapper.countAssetsByCategoryId(categoryId) > 0) {
+                    throw new ServiceException("该分类下已有资产，分类值不能修改！");
+                }
+
                 Category category = new Category();
                 category.setId(categoryId);
-                category.setName(cleaned);
-                int updated = session.getMapper(CommonMapper.class).updateCategory(category);
+                category.setName(cleanedName);
+                category.setValue(cleanedValue);
+                int updated = mapper.updateCategory(category);
                 if (updated == 0) {
                     throw new ServiceException("分类不存在或已被删除。");
                 }
                 return category;
             });
         } catch (RuntimeException e) {
-            throw ServiceSupport.translate(e, "分类名称已存在：" + cleaned, "保存分类");
+            throw ServiceSupport.translate(e,
+                    "分类名称或分类值已存在：" + cleanedName + " / " + cleanedValue, "保存分类");
         }
     }
 
@@ -78,5 +100,14 @@ public class CategoryService {
         } catch (RuntimeException e) {
             throw ServiceSupport.translate(e, null, "删除分类");
         }
+    }
+
+    private String normalizeValue(String value) {
+        String cleaned = ServiceSupport.requireText(value, "分类值不能为空！")
+                .toLowerCase(Locale.ROOT);
+        if (!VALUE_PATTERN.matcher(cleaned).matches()) {
+            throw new ServiceException("分类值只能使用小写英文、数字、- 或 _。");
+        }
+        return cleaned;
     }
 }

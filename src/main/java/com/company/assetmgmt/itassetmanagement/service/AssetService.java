@@ -2,16 +2,20 @@ package com.company.assetmgmt.itassetmanagement.service;
 
 import com.company.assetmgmt.itassetmanagement.infrastructure.db.MyBatisUtil;
 import com.company.assetmgmt.itassetmanagement.mapper.AssetMapper;
+import com.company.assetmgmt.itassetmanagement.mapper.CommonMapper;
 import com.company.assetmgmt.itassetmanagement.mapper.LogMapper;
 import com.company.assetmgmt.itassetmanagement.model.Asset;
 import com.company.assetmgmt.itassetmanagement.model.AssetStatus;
+import com.company.assetmgmt.itassetmanagement.model.Category;
 import com.company.assetmgmt.itassetmanagement.model.OperationLog;
 import org.apache.ibatis.session.SqlSession;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * 资产业务：校验、增删改、变更日志。所有写操作都在一个事务内完成。
@@ -29,7 +33,20 @@ public class AssetService {
         try {
             return MyBatisUtil.inTransaction(session -> {
                 AssetMapper assetMapper = session.getMapper(AssetMapper.class);
+                CommonMapper commonMapper = session.getMapper(CommonMapper.class);
+
+                Category category = commonMapper.selectCategoryById(asset.getCategoryId());
+                String prefix = categoryPrefix(category);
+
+                // 先插入一个唯一占位编号，拿到自增 ID 后再生成正式编号。
+                asset.setAssetNo("__pending__" + UUID.randomUUID());
                 assetMapper.insert(asset);
+
+                String assetNo = prefix + "-" + asset.getId();
+                int updated = assetMapper.updateAssetNo(asset.getId(), assetNo);
+                if (updated == 0) {
+                    throw new ServiceException("资产编号生成失败，请重试。");
+                }
 
                 Asset saved = assetMapper.findById(asset.getId());
                 if (saved == null) {
@@ -44,7 +61,7 @@ public class AssetService {
                 return saved;
             });
         } catch (RuntimeException e) {
-            throw ServiceSupport.translate(e, "资产编号已存在：" + asset.getAssetNo(), "保存资产");
+            throw ServiceSupport.translate(e, null, "保存资产");
         }
     }
 
@@ -58,10 +75,15 @@ public class AssetService {
         try {
             return MyBatisUtil.inTransaction(session -> {
                 AssetMapper assetMapper = session.getMapper(AssetMapper.class);
+                CommonMapper commonMapper = session.getMapper(CommonMapper.class);
                 Asset before = assetMapper.findById(asset.getId());
                 if (before == null) {
                     throw new ServiceException("资产不存在或已被删除。");
                 }
+
+                Category category = commonMapper.selectCategoryById(asset.getCategoryId());
+                String prefix = categoryPrefix(category);
+                asset.setAssetNo(prefix + "-" + asset.getId());
 
                 assetMapper.update(asset);
                 Asset after = assetMapper.findById(asset.getId());
@@ -74,7 +96,7 @@ public class AssetService {
                 return after;
             });
         } catch (RuntimeException e) {
-            throw ServiceSupport.translate(e, "资产编号已存在：" + asset.getAssetNo(), "保存资产");
+            throw ServiceSupport.translate(e, null, "保存资产");
         }
     }
 
@@ -100,8 +122,19 @@ public class AssetService {
         }
     }
 
+    private String categoryPrefix(Category category) {
+        if (category == null) {
+            throw new ServiceException("资产类别不存在或已被删除。");
+        }
+        String value = ServiceSupport.trimToNull(category.getValue());
+        if (value == null) {
+            throw new ServiceException("该分类未配置分类值，无法生成资产编号！");
+        }
+        return value.toLowerCase(Locale.ROOT);
+    }
+
     private void normalize(Asset asset) {
-        asset.setAssetNo(ServiceSupport.trimToNull(asset.getAssetNo()));
+        // 资产编号由分类值和数据库 ID 自动生成，这里不再处理。
         // 资产名称允许为空；为空时按业务约定保存为字符串 "null"。
         String name = ServiceSupport.trimToNull(asset.getName());
         asset.setName(name == null ? "null" : name);
@@ -109,6 +142,11 @@ public class AssetService {
         asset.setPortNumber(ServiceSupport.trimToNull(asset.getPortNumber()));
         asset.setDeviceParams(ServiceSupport.trimToNull(asset.getDeviceParams()));
         asset.setStatus(ServiceSupport.trimToNull(asset.getStatus()));
+
+        if (AssetStatus.IDLE.code().equals(asset.getStatus())) {
+            // 闲置资产不归属任何部门。
+            asset.setOwnerDeptId(null);
+        }
 
         if (AssetStatus.REPAIR.code().equals(asset.getStatus())) {
             if (asset.getRepairCost() != null) {
@@ -121,9 +159,6 @@ public class AssetService {
     }
 
     private void validate(Asset asset) {
-        if (asset.getAssetNo() == null) {
-            throw new ServiceException("资产编号不能为空！");
-        }
         if (asset.getCategoryId() == null) {
             throw new ServiceException("请选择资产类别！");
         }
@@ -137,6 +172,9 @@ public class AssetService {
             if (asset.getRepairCost().signum() < 0) {
                 throw new ServiceException("维修费用不能为负数！");
             }
+        }
+        if (AssetStatus.LENT.code().equals(asset.getStatus()) && asset.getUserName() == null) {
+            throw new ServiceException("出借状态必须填写使用人！");
         }
     }
 

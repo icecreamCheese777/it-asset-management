@@ -1,6 +1,7 @@
 package com.company.assetmgmt.itassetmanagement.mapper;
 
 import com.company.assetmgmt.itassetmanagement.model.Asset;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -14,6 +15,9 @@ public interface AssetMapper {
 
     /** 新增资产。 */
     int insert(Asset asset);
+
+    /** 回填根据分类值和数据库 ID 生成的资产编号。 */
+    int updateAssetNo(@Param("id") Integer id, @Param("assetNo") String assetNo);
 
     /** 根据 ID 删除资产。 */
     int deleteById(Integer id);
